@@ -65,6 +65,11 @@ class MT5Connector:
             quit()
 
     def get_data(self, symbol_mt5, n_bars=2000):
+        # Ensure symbol is selected in Market Watch
+        if not mt5.symbol_select(symbol_mt5, True):
+            print(f"[WARN] Could not select {symbol_mt5} in Market Watch.")
+            return None
+            
         # Timeframe: H1
         rates = mt5.copy_rates_from_pos(symbol_mt5, mt5.TIMEFRAME_H1, 0, n_bars)
         if rates is None:
@@ -294,7 +299,15 @@ class LiveTrader:
         
         self.logger = TradeLogger(mode=mode)
         self.config = Config()
-        # ... (Rest of Init) ...
+        
+        # Initialize Engines
+        self.engines = {
+            'feature': FeatureEngine(self.config),
+            'regime': RegimeEngine(self.config),
+            'alpha': AlphaEngine(self.config), 
+            'ensemble': EnsembleSignal(self.config),
+            'crisis': CrisisAlphaEngine(self.config)
+        }
 
     # ... (load_governance, etc.) ...
     
