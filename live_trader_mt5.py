@@ -598,22 +598,14 @@ class LiveTrader:
         # Sort by Probability
         scan_results.sort(key=lambda x: x['prob'], reverse=True)
         
-        # === BUILD TABLE (with borders for clean display) ===
-        from rich.box import SIMPLE
-        table = Table(box=SIMPLE, show_header=True, header_style="bold cyan", expand=False)
-        table.add_column("SYM", style="white", no_wrap=True)
-        table.add_column("PRICE", justify="right")
-        table.add_column("PROB", justify="right")
-        table.add_column("SIG", justify="center")
-        table.add_column("TRND", justify="center")
-        table.add_column("VOL", justify="right")
-        table.add_column("24h", justify="right")
-        table.add_column("POS", justify="center")
+        # === BUILD SIMPLE TEXT OUTPUT ===
+        lines = []
+        lines.append(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
+        lines.append("")
+        lines.append(f"{'SYM':<8} {'PRICE':>10} {'PROB':>5} {'SIG':>4} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
+        lines.append("-" * 55)
         
         for res in scan_results:
-            sig_style = "green bold" if res['sig'] == 1 else ("red bold" if res['sig'] == -1 else None)
-            pos_display = "L" if res['pos'] == 'L' else ("S" if res['pos'] == 'S' else "")
-            # Format price based on magnitude
             price = res['price']
             if price > 1000:
                 price_str = f"{price:,.0f}"
@@ -621,22 +613,16 @@ class LiveTrader:
                 price_str = f"{price:.2f}"
             else:
                 price_str = f"{price:.5f}"
-            table.add_row(
-                res['sym'],
-                price_str,
-                f"{res['prob']:.2f}",
-                str(res['sig']) if res['sig'] != 0 else "-",
-                res['regime'],
-                f"{res['vol']:+.1f}",
-                f"{res['chg']:+.1f}%",
-                pos_display,
-                style=sig_style
+            pos_display = res['pos'] if res['pos'] else ""
+            sig_display = str(res['sig']) if res['sig'] != 0 else "-"
+            lines.append(
+                f"{res['sym']:<8} {price_str:>10} {res['prob']:>5.2f} {sig_display:>4} "
+                f"{res['regime']:>5} {res['vol']:>+5.1f} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
         
-        # === DISPLAY (clear screen fully first) ===
-        console.clear()
-        console.print(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%\n")
-        console.print(table)
+        # === DISPLAY (simple clear + print) ===
+        os.system('cls')
+        print("\n".join(lines))
         
         # 5. EXECUTION LOGIC (Silent unless trade happens)
         for sym_int, df in live_data.items():
