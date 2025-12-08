@@ -472,9 +472,11 @@ class LiveTrader:
             return False
 
     def run_cycle(self):
-        # Clear screen for dashboard effect (Windows/Linux/Mac)
+        # Clear screen for dashboard effect
         os.system('cls' if os.name == 'nt' else 'clear')
-        print(f"QuantBot Live Dashboard | {datetime.now().strftime('%Y-%m-%d %H:%M:%S')} | freq=1s")
+        
+        # Header
+        print(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Freq: 1s")
         
         # 0. CHECK CLOSED TRADES (Async logging)
         current_positions = self.mt5.get_open_positions()
