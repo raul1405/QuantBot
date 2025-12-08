@@ -598,9 +598,10 @@ class LiveTrader:
         # Sort by Probability
         scan_results.sort(key=lambda x: x['prob'], reverse=True)
         
-        # === BUILD CLEAN TABLE (No borders, minimal) ===
-        table = Table(box=None, show_header=True, header_style="bold", padding=(0, 1))
-        table.add_column("SYM", style="cyan", no_wrap=True)
+        # === BUILD TABLE (with borders for clean display) ===
+        from rich.box import SIMPLE
+        table = Table(box=SIMPLE, show_header=True, header_style="bold cyan", expand=False)
+        table.add_column("SYM", style="white", no_wrap=True)
         table.add_column("PRICE", justify="right")
         table.add_column("PROB", justify="right")
         table.add_column("SIG", justify="center")
@@ -610,8 +611,8 @@ class LiveTrader:
         table.add_column("POS", justify="center")
         
         for res in scan_results:
-            sig_style = "green bold" if res['sig'] == 1 else ("red bold" if res['sig'] == -1 else "dim")
-            pos_display = "[green]L[/]" if res['pos'] == 'L' else ("[red]S[/]" if res['pos'] == 'S' else "")
+            sig_style = "green bold" if res['sig'] == 1 else ("red bold" if res['sig'] == -1 else None)
+            pos_display = "L" if res['pos'] == 'L' else ("S" if res['pos'] == 'S' else "")
             # Format price based on magnitude
             price = res['price']
             if price > 1000:
@@ -629,12 +630,12 @@ class LiveTrader:
                 f"{res['vol']:+.1f}",
                 f"{res['chg']:+.1f}%",
                 pos_display,
-                style=sig_style if res['sig'] != 0 else None
+                style=sig_style
             )
         
-        # === DISPLAY ===
+        # === DISPLAY (clear screen fully first) ===
         console.clear()
-        console.print(f"[bold white]QuantBot[/] | {datetime.now().strftime('%H:%M:%S')} | Eq: [cyan]${current_equity:,.0f}[/] | PnL: {daily_dd_pct*100:+.2f}% | Pos: {len(pos_map)}\n")
+        console.print(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%\n")
         console.print(table)
         
         # 5. EXECUTION LOGIC (Silent unless trade happens)
