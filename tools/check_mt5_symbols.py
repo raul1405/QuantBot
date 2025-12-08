@@ -20,8 +20,16 @@ except:
 def main():
     print(f"Initializing MT5...")
     if not mt5.initialize():
-        print("initialize() failed, error code =", mt5.last_error())
-        return
+        err = mt5.last_error()
+        print(f"Standard initialize() failed, error code = {err}")
+        
+        if LOGIN and PASSWORD:
+            print(f"Retrying initialization with credentials for {LOGIN}...")
+            if not mt5.initialize(login=LOGIN, password=PASSWORD, server=SERVER):
+                print(f"Explicit initialize failed too: {mt5.last_error()}")
+                return
+        else:
+            return
 
     # Check if we are already connected (e.g. Terminal is open)
     if mt5.account_info() is not None:
