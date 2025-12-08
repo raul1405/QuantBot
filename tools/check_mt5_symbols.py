@@ -18,17 +18,24 @@ except:
     SERVER = ""
 
 def main():
-    print(f"Connecting to {SERVER} as {LOGIN}...")
+    print(f"Initializing MT5...")
     if not mt5.initialize():
         print("initialize() failed, error code =", mt5.last_error())
         return
 
-    if LOGIN and PASSWORD:
+    # Check if we are already connected (e.g. Terminal is open)
+    if mt5.account_info() is not None:
+        print(f"Already connected to Account #{mt5.account_info().login}")
+    elif LOGIN and PASSWORD:
+        print(f"Not connected. Attempting login to {LOGIN}...")
         authorized = mt5.login(LOGIN, password=PASSWORD, server=SERVER)
         if not authorized:
             print("failed to connect at account #{}, error code: {}".format(LOGIN, mt5.last_error()))
             return
         print("Connected.")
+    else:
+        print("Not connected and no credentials found in live_config.json")
+        return
 
     # Get all symbols
     symbols = mt5.symbols_get()
