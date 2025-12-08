@@ -492,7 +492,6 @@ class LiveTrader:
         state_file = "daily_state.json"
         start_equity = acct.equity
         try:
-            import json, os
             if os.path.exists(state_file):
                 with open(state_file, 'r') as f:
                     state = json.load(f)
