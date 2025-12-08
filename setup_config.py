@@ -5,7 +5,7 @@ config = {
     "account_leverage": 30,
     "credentials": {
         "login": 99832013,
-        "password": "your_password_here_but_env_overrides",
+        "password": "1xPsWuD@", # ACTUAL PASSWORD PPLIED
         "server": "MetaQuotes-Demo"
     },
     "governance": {
