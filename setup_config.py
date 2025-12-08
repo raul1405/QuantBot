@@ -24,4 +24,4 @@ config = {
 with open("live_config.json", "w") as f:
     json.dump(config, f, indent=4)
 
-print("✅ live_config.json created successfully.")
+print("[OK] live_config.json created successfully.")
