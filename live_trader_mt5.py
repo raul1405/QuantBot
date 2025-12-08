@@ -733,8 +733,8 @@ class LiveTrader:
             
             self.run_cycle()
             
-            # Sleep 1 minute (for testing) or 59 minutes
-            time.sleep(60)
+            # Sleep 5 seconds (Real-time Feel, but avoids CPU/Log spam)
+            time.sleep(5)
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
