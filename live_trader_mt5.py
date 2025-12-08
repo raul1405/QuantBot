@@ -482,13 +482,17 @@ class LiveTrader:
             return False
 
     def run_cycle(self):
-        # Clear screen for dashboard effect
-        os.system('cls' if os.name == 'nt' else 'clear')
+        # Initialize Buffer for Atomic Print (Prevents flickering/bursting)
+        buffer = []
         
-        # Header
-        print(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Freq: 1s")
+        # 0. HEADER
+        # Use ANSI Clear Screen + Home (\033[H\033[J) for fastest refresh
+        clear_code = "\033[H\033[J" if os.name != 'nt' else "" 
+        if os.name == 'nt': os.system('cls') # Windows fallback if needed, but slow.
         
-        # 0. CHECK CLOSED TRADES (Async logging)
+        buffer.append(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Freq: 1s")
+        
+        # 0. CHECK CLOSED TRADES (Async logging - Silent in Dashboard)
         current_positions = self.mt5.get_open_positions()
         current_tickets = [p['ticket'] for p in current_positions]
         self.logger.check_closed_trades(current_tickets)
@@ -510,22 +514,21 @@ class LiveTrader:
                     if state.get("date") == today_str:
                         start_equity = state.get("start_equity")
                     else:
-                        # New Day: Reset
                         start_equity = acct.equity 
                         with open(state_file, 'w') as f:
                             json.dump({"date": today_str, "start_equity": start_equity}, f)
             else:
                  with open(state_file, 'w') as f:
                     json.dump({"date": today_str, "start_equity": start_equity}, f)
-        except Exception as e:
-            print(f"State Error: {e}")
+        except Exception:
+            pass # Silent fail on state read
 
         # Calc Drawdown
         current_equity = acct.equity
         daily_dd_pct = (current_equity - start_equity) / start_equity
         
         limit_pct = self.gov_config['governance']['max_daily_dd_pct'] # 0.045
-        print(f"Daily PnL: {daily_dd_pct*100:.2f}% (Limit: -{limit_pct*100:.1f}%)")
+        buffer.append(f"Daily PnL: {daily_dd_pct*100:.2f}% (Limit: -{limit_pct*100:.1f}%)")
         
         if daily_dd_pct < -limit_pct: 
             print("!!! DAILY LOSS LIMIT HIT (GOVERNANCE) !!! CLOSING ALL POSITIONS.")
@@ -538,10 +541,9 @@ class LiveTrader:
         # --- ACCOUNT HEALTH ---
         margin_free = acct.margin_free
         margin_used = acct.margin
-        print(f"\n[ACCOUNT HEALTH]")
-        print(f"Balance: ${acct.balance:,.2f} | Equity: ${current_equity:,.2f}")
-        print(f"Margin Used: ${margin_used:,.2f} | Free: ${margin_free:,.2f}")
-        print(f"Daily PnL: {daily_dd_pct*100:+.2f}%")
+        buffer.append(f"\n[ACCOUNT HEALTH]")
+        buffer.append(f"Balance: ${acct.balance:,.2f} | Equity: ${current_equity:,.2f}")
+        buffer.append(f"Margin Used: ${margin_used:,.2f} | Free: ${margin_free:,.2f}")
         
         # 2. FETCH LATEST DATA
         live_data = {}
@@ -557,29 +559,27 @@ class LiveTrader:
             # Add Features
             live_data = self.engines['feature'].add_features_all(live_data)
             live_data = self.engines['regime'].add_regimes_all(live_data)
-            
             # Alpha
             live_data = self.engines['alpha'].add_signals_all(live_data)
-            
             # Ensemble
             live_data = self.engines['ensemble'].add_ensemble_all(live_data)
         
-        # 4. EXECUTION LOGIC
+        # 4. EXECUTION LOGIC (Prepare but don't print yet)
+        exec_logs = [] 
 
         # Get Open Positions
         current_positions = self.mt5.get_open_positions()
         # Map by Internal Symbol
         pos_map = {}
         for p in current_positions:
-            # Map MT5 symbol to Internal
             sym_int = REVERSE_MAP.get(p['symbol'])
             if sym_int:
                 pos_map[sym_int] = p
         
-        # --- LIVE DASHBOARD ---
-        print("\n[MARKET SCANNER]")
-        print(f"{'SYMBOL':<10} | {'PROB':<6} | {'SIGNAL':<6} | {'ACTION':<6} | {'REGIME':<12} | {'VOL':<5}")
-        print("-" * 75)
+        # --- MARKET SCANNER TABLE CONSTRUCTION ---
+        buffer.append("\n[MARKET SCANNER]")
+        buffer.append(f"{'SYMBOL':<10} | {'PROB':<6} | {'SIGNAL':<6} | {'ACTION':<6} | {'REGIME':<12} | {'VOL':<5}")
+        buffer.append("-" * 75)
         
         # Collect stats for sorting
         scan_results = []
@@ -611,27 +611,22 @@ class LiveTrader:
         # Sort by Probability (High to Low)
         scan_results.sort(key=lambda x: x['prob'], reverse=True)
         
-        # Show Top 10
-        for res in scan_results[:10]:
+        # ADD ROWS TO BUFFER
+        for res in scan_results[:12]: # Show Top 12
             sym = res['sym']
             prob = res['prob']
             sig = res['sig']
             
             action = "BUY" if sig == 1 else ("SELL" if sig == -1 else "--")
-            # Highlight Action
-            if sig != 0:
-                action = f"*{action}*"
+            if sig != 0: action = f"*{action}*"
                 
             disp_sym = SYMBOL_MAP.get(sym, sym)
-            
-            print(f"{disp_sym:<10} | {prob:.2f}   | {sig:<6} | {action:<6} | {res['regime']:<12} | {res['vol']:.2f}")
+            buffer.append(f"{disp_sym:<10} | {prob:.2f}   | {sig:<6} | {action:<6} | {res['regime']:<12} | {res['vol']:.2f}")
 
-        # Iterate internal symbols for Execution
+        # --- EXECUTION LOOP (Silent or buffered) ---
         for sym_int, df in live_data.items():
             last_bar = df.iloc[-1]
             signal = last_bar.get('S_Alpha', 0) 
-            
-            # Simple Logic for MVP
             target_direction = 0
             if signal == 1: target_direction = 1
             elif signal == -1: target_direction = -1
@@ -641,80 +636,52 @@ class LiveTrader:
             
             # FLAT -> OPEN
             if not open_pos and target_direction != 0:
-                print(f"OPEN {mt5_sym} Direction: {target_direction}")
                 # Size: Config-based Risk (0.30%) * Vol Multiplier
                 balance = acct.balance
-                
-                # === FROZEN v2.1 RISK LOGIC ===
-                # Base Risk: 0.30%
-                # Vol Sizing: 1 / (1 + Vol_Intensity^2)
-                
                 vol_int = last_bar.get('Vol_Intensity', 0.0)
                 vol_mult = 1.0 / (1.0 + max(vol_int, 0.0)**2)
                 vol_mult = max(0.3, min(vol_mult, 1.2)) # Clamp [0.3, 1.2]
-                
-                base_risk_pct = 0.003 # FIXED v2.1 (0.30%)
+                base_risk_pct = 0.003
                 final_risk_pct = base_risk_pct * vol_mult
-                
                 risk_amt = balance * final_risk_pct
                 
-                # SL/TP Multipliers (v2.1)
+                # SL/TP Multipliers
                 atr = last_bar['ATR']
-                sl_mult = 1.5
-                tp_mult = 2.0
-                
+                sl_mult = 1.5; tp_mult = 2.0
                 sl_dist = atr * sl_mult
                 
                 # Dynamic Volume Calculation
                 symbol_info = mt5.symbol_info(mt5_sym)
-                if not symbol_info:
-                    print(f"ERROR: Symbol info not found for {mt5_sym}")
-                    continue
+                if not symbol_info: continue
                     
                 tick_size = symbol_info.trade_tick_size
                 tick_value = symbol_info.trade_tick_value
+                if tick_size == 0 or tick_value == 0: continue
                 
-                if tick_size == 0 or tick_value == 0:
-                     print(f"ERROR: Invalid tick data for {mt5_sym}")
-                     continue
-                
-                # Formula: Risk = Volume * (SL_Points) * TickValue
                 sl_points = sl_dist / tick_size
                 loss_per_lot = sl_points * tick_value
                 
-                if loss_per_lot == 0:
-                    volume = 0.01 # Minimum fallback
-                    print(f"WARNING: loss_per_lot is 0 for {mt5_sym}. Using min volume.")
-                else:
-                    volume = risk_amt / loss_per_lot
+                if loss_per_lot == 0: volume = 0.01 
+                else: volume = risk_amt / loss_per_lot
                 
-                # Round to Lot Step
                 step = symbol_info.volume_step
                 volume = round(volume / step) * step
-                
-                # Bounds check
                 volume = max(volume, symbol_info.volume_min)
                 volume = min(volume, symbol_info.volume_max)
                 
-                if volume <= 0:
-                     print(f"Calculated 0 volume for {mt5_sym} (Risk ${risk_amt:.2f})")
-                     continue
+                if volume <= 0: continue
                 
-                # === GOVERNANCE OVERLAY (Exposure Caps) ===
-                if not self.check_exposure_limit(mt5_sym, target_direction, volume):
-                    continue # Block Trade
+                # === GOVERNANCE OVERLAY ===
+                if not self.check_exposure_limit(mt5_sym, target_direction, volume): continue
                 
                 price = symbol_info.ask if target_direction == 1 else symbol_info.bid
-                
                 sl_price = price - (sl_dist * target_direction)
                 tp_price = price + (sl_dist * tp_mult * target_direction)
                 
-                print(f"  [EXECUTION] {mt5_sym} | Vol: {volume} | SL: {sl_price:.5f} | TP: {tp_price:.5f} | Risk: ${risk_amt:.2f}")
+                exec_logs.append(f"[EXECUTION] {mt5_sym} | Vol: {volume} | SL: {sl_price:.5f} | TP: {tp_price:.5f}")
                 
                 ticket = self.mt5.open_order(mt5_sym, 'BUY' if target_direction==1 else 'SELL', volume, sl_price, tp_price)
-                
                 if ticket:
-                    # LOG ENTRY CONTEXT
                     context = {
                         'Risk_Dollars': risk_amt,
                         'Entry_Trend_Regime': str(last_bar.get('Trend_Regime', '')),
@@ -727,12 +694,18 @@ class LiveTrader:
             elif open_pos:
                 current_dir = 1 if open_pos['type'] =='BUY' else -1
                 if target_direction != 0 and target_direction != current_dir:
-                    print(f"REVERSE {mt5_sym}")
+                    exec_logs.append(f"REVERSE {mt5_sym}")
                     self.mt5.close_position(open_pos['ticket'])
-                    # Will open next cycle
-                elif target_direction == 0:
-                    # Signal Lost? Close? Or Hold?
-                    pass
+
+        # --- FINAL PRINT (ATOMIC) ---
+        # Add Execution Logs if any
+        if exec_logs:
+            buffer.append("\n[RECENT ACTIVITY]")
+            buffer.extend(exec_logs)
+
+        # PRINT EVERYTHING AT ONCE
+        sys.stdout.write(clear_code + "\n".join(buffer) + "\n")
+        sys.stdout.flush()
 
     def loop(self):
         # 1. Train on Startup
