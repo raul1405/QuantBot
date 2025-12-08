@@ -6,6 +6,9 @@ import MetaTrader5 as mt5
 import pandas as pd
 import numpy as np
 import time
+import json
+import os
+import requests
 from datetime import datetime, timedelta, timezone
 from quant_backtest import Config, FeatureEngine, AlphaEngine, RegimeEngine, EnsembleSignal, CrisisAlphaEngine
 
