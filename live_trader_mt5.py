@@ -521,6 +521,15 @@ class LiveTrader:
                 self.mt5.close_position(p['ticket'])
             return # Stop Cycle
         
+        
+        # --- ACCOUNT HEALTH ---
+        margin_free = acct.margin_free
+        margin_used = acct.margin
+        print(f"\n[ACCOUNT HEALTH]")
+        print(f"Balance: ${acct.balance:,.2f} | Equity: ${current_equity:,.2f}")
+        print(f"Margin Used: ${margin_used:,.2f} | Free: ${margin_free:,.2f}")
+        print(f"Daily PnL: {daily_dd_pct*100:+.2f}%")
+        
         # 2. FETCH LATEST DATA
         live_data = {}
         for sym_int in self.target_symbols:
@@ -555,19 +564,14 @@ class LiveTrader:
         
         # --- LIVE DASHBOARD ---
         print("\n[MARKET SCANNER]")
-        print(f"{'SYMBOL':<10} | {'PROB':<6} | {'SIGNAL':<8} | {'ACTION'}")
-        print("-" * 50)
+        print(f"{'SYMBOL':<10} | {'PROB':<6} | {'SIGNAL':<6} | {'ACTION':<6} | {'REGIME':<12} | {'VOL':<5}")
+        print("-" * 75)
         
         # Collect stats for sorting
         scan_results = []
         for sym_int, df in live_data.items():
             last_bar = df.iloc[-1]
             signal = last_bar.get('S_Alpha', 0)
-            
-            # Determine confident probability based on Signal
-            # If Signal is 1 (Long) -> use prob_up
-            # If Signal is -1 (Short) -> use prob_down
-            # If Neutral -> use prob_neural or max(up, down)
             
             p_up = last_bar.get('prob_up', 0.0)
             p_down = last_bar.get('prob_down', 0.0)
@@ -577,25 +581,36 @@ class LiveTrader:
             elif signal == -1:
                 display_prob = p_down
             else:
-                display_prob = max(p_up, p_down) # Show the strongest conviction even if not triggered
+                display_prob = max(p_up, p_down)
             
-            scan_results.append((sym_int, display_prob, signal))
+            regime = str(last_bar.get('Trend_Regime', 'Unknown'))
+            vol = float(last_bar.get('Vol_Intensity', 0.0))
+            
+            scan_results.append({
+                'sym': sym_int,
+                'prob': display_prob,
+                'sig': signal,
+                'regime': regime,
+                'vol': vol
+            })
             
         # Sort by Probability (High to Low)
-        scan_results.sort(key=lambda x: x[1], reverse=True)
+        scan_results.sort(key=lambda x: x['prob'], reverse=True)
         
-        # Show Top 5
-        for res in scan_results[:5]:
-            sym, prob, sig = res
-            action = "BUY" if sig == 1 else ("SELL" if sig == -1 else "--")
+        # Show Top 10
+        for res in scan_results[:10]:
+            sym = res['sym']
+            prob = res['prob']
+            sig = res['sig']
             
-            # Action Mapping
-            status_str = "PENDING" if sig != 0 else "--"
+            action = "BUY" if sig == 1 else ("SELL" if sig == -1 else "--")
+            # Highlight Action
             if sig != 0:
-                print(f"{SYMBOL_MAP.get(sym, sym):<10} | {prob:.2f}   | {action:<8} | {status_str}")
-            else:
-                # Optionally hide neutrals or show them nicely
-                pass
+                action = f"*{action}*"
+                
+            disp_sym = SYMBOL_MAP.get(sym, sym)
+            
+            print(f"{disp_sym:<10} | {prob:.2f}   | {sig:<6} | {action:<6} | {res['regime']:<12} | {res['vol']:.2f}")
 
         # Iterate internal symbols for Execution
         for sym_int, df in live_data.items():
