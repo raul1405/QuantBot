@@ -584,26 +584,25 @@ class LiveTrader:
             scan_results.append({
                 'sym': mt5_sym,
                 'price': close,
-                'prob': prob,
+                'p_up': p_up,
+                'p_dn': p_down,
                 'sig': signal,
                 'regime': regime,
                 'vol': vol_int,
-                'atr_pct': atr_pct,
                 'chg': chg_24h,
-                'spread': spread_pts,
                 'pos': pos_status,
                 'sym_int': sym_int
             })
             
-        # Sort by Probability
-        scan_results.sort(key=lambda x: x['prob'], reverse=True)
+        # Sort by max probability
+        scan_results.sort(key=lambda x: max(x['p_up'], x['p_dn']), reverse=True)
         
         # === BUILD SIMPLE TEXT OUTPUT ===
         lines = []
         lines.append(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
-        lines.append(f"{'SYM':<8} {'PRICE':>10} {'PROB':>5} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
-        lines.append("-" * 60)
+        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>5} {'DN':>5} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
+        lines.append("-" * 65)
         
         for res in scan_results:
             price = res['price']
@@ -612,11 +611,11 @@ class LiveTrader:
             elif price > 10:
                 price_str = f"{price:.2f}"
             else:
-                price_str = f"{price:.5f}"
+                price_str = f"{price:.4f}"
             pos_display = res['pos'] if res['pos'] else ""
             action = "BUY" if res['sig'] == 1 else ("SELL" if res['sig'] == -1 else "-")
             lines.append(
-                f"{res['sym']:<8} {price_str:>10} {res['prob']:>5.2f} {action:>5} "
+                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>5.2f} {res['p_dn']:>5.2f} {action:>5} "
                 f"{res['regime']:>5} {res['vol']:>+5.1f} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
         
