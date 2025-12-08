@@ -583,6 +583,7 @@ class LiveTrader:
             
             scan_results.append({
                 'sym': mt5_sym,
+                'price': close,
                 'prob': prob,
                 'sig': signal,
                 'regime': regime,
@@ -600,6 +601,7 @@ class LiveTrader:
         # === BUILD CLEAN TABLE (No borders, minimal) ===
         table = Table(box=None, show_header=True, header_style="bold", padding=(0, 1))
         table.add_column("SYM", style="cyan", no_wrap=True)
+        table.add_column("PRICE", justify="right")
         table.add_column("PROB", justify="right")
         table.add_column("SIG", justify="center")
         table.add_column("TRND", justify="center")
@@ -610,8 +612,17 @@ class LiveTrader:
         for res in scan_results:
             sig_style = "green bold" if res['sig'] == 1 else ("red bold" if res['sig'] == -1 else "dim")
             pos_display = "[green]L[/]" if res['pos'] == 'L' else ("[red]S[/]" if res['pos'] == 'S' else "")
+            # Format price based on magnitude
+            price = res['price']
+            if price > 1000:
+                price_str = f"{price:,.0f}"
+            elif price > 10:
+                price_str = f"{price:.2f}"
+            else:
+                price_str = f"{price:.5f}"
             table.add_row(
                 res['sym'],
+                price_str,
                 f"{res['prob']:.2f}",
                 str(res['sig']) if res['sig'] != 0 else "-",
                 res['regime'],
