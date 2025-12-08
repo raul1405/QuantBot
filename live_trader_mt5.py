@@ -9,6 +9,16 @@ import time
 import json
 import os
 import requests
+import sys
+
+class SuppressStdout:
+    def __enter__(self):
+        self._original_stdout = sys.stdout
+        sys.stdout = open(os.devnull, 'w')
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        sys.stdout.close()
+        sys.stdout = self._original_stdout
 from datetime import datetime, timedelta, timezone
 from quant_backtest import Config, FeatureEngine, AlphaEngine, RegimeEngine, EnsembleSignal, CrisisAlphaEngine
 
@@ -542,16 +552,17 @@ class LiveTrader:
             if df is not None:
                 live_data[sym_int] = df
         
-        # 3. GENERATE SIGNALS
-        # Add Features
-        live_data = self.engines['feature'].add_features_all(live_data)
-        live_data = self.engines['regime'].add_regimes_all(live_data)
-        
-        # Alpha
-        live_data = self.engines['alpha'].add_signals_all(live_data)
-        
-        # Ensemble
-        live_data = self.engines['ensemble'].add_ensemble_all(live_data)
+        # 3. GENERATE SIGNALS (Silence verbose backend logs)
+        with SuppressStdout():
+            # Add Features
+            live_data = self.engines['feature'].add_features_all(live_data)
+            live_data = self.engines['regime'].add_regimes_all(live_data)
+            
+            # Alpha
+            live_data = self.engines['alpha'].add_signals_all(live_data)
+            
+            # Ensemble
+            live_data = self.engines['ensemble'].add_ensemble_all(live_data)
         
         # 4. EXECUTION LOGIC
 
