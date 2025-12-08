@@ -3,39 +3,30 @@ import pandas as pd
 import os
 import json
 
-# Load Config for Credentials
-try:
-    with open("live_config.json", "r") as f:
-        config = json.load(f)
-        creds = config.get("credentials", {})
-        LOGIN = int(creds.get("login", 0))
-        PASSWORD = creds.get("password", "")
-        SERVER = creds.get("server", "")
-except:
-    print("Could not load live_config.json")
-    LOGIN = 0
-    PASSWORD = ""
-    SERVER = ""
-
-def main():
-    print(f"Initializing MT5...")
-    if not mt5.initialize():
+    # HARDCODED CREDENTIALS (USER PROVIDED)
+    LOGIN = 99832013
+    PASSWORD = "1xPsWuD@"
+    SERVER = "MetaQuotes-Demo"
+    
+    print(f"Initializing MT5 with Account {LOGIN}...")
+    # Try initializing WITH credentials to force correct account load
+    if not mt5.initialize(login=LOGIN, password=PASSWORD, server=SERVER):
         print("initialize() failed, error code =", mt5.last_error())
-        return
+        print("Retrying without credentials (using existing terminal state)...")
+        if not mt5.initialize():
+             print("initialize() fallback failed too.")
+             return
 
-    # Check if we are already connected (e.g. Terminal is open)
-    if mt5.account_info() is not None:
-        print(f"Already connected to Account #{mt5.account_info().login}")
-    elif LOGIN and PASSWORD:
-        print(f"Not connected. Attempting login to {LOGIN}...")
-        authorized = mt5.login(LOGIN, password=PASSWORD, server=SERVER)
-        if not authorized:
-            print("failed to connect at account #{}, error code: {}".format(LOGIN, mt5.last_error()))
-            return
-        print("Connected.")
+    print("MT5 Initialized. Verifying connection...")
+    
+    # Force Login
+    authorized = mt5.login(LOGIN, password=PASSWORD, server=SERVER)
+    if authorized:
+        print(f"Connected to {LOGIN} on {SERVER}")
     else:
-        print("Not connected and no credentials found in live_config.json")
-        return
+        print(f"Login failed: {mt5.last_error()}")
+        # Continue anyway, listing symbols might still work if partial auth exists
+
 
     # Get all symbols
     symbols = mt5.symbols_get()
