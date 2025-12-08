@@ -700,15 +700,13 @@ class LiveTrader:
         
         # 2. Infinite Loop
         while True:
-            # Sync to top of hour
-            now = datetime.now()
-            # Calculate seconds to next hour
-            # sleep...
+            try:
+                self.run_cycle()
+            except Exception as e:
+                console.print(f"[red]Error in cycle: {e}[/red]")
             
-            self.run_cycle()
-            
-            # Sleep 1 second (Live Dashboard Mode)
-            time.sleep(1)
+            # Sleep 15 seconds between updates
+            time.sleep(15)
 
 if __name__ == "__main__":
     from dotenv import load_dotenv
