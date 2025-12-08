@@ -419,7 +419,6 @@ class LiveTrader:
 
         # Prepare Features
         data_map = self.engines['feature'].add_features_all(data_map)
-        data_map = self.engines['regime'].add_features_all(data_map) # Wait, add_regimes_all
         data_map = self.engines['regime'].add_regimes_all(data_map)
         
         # Train Alpha
