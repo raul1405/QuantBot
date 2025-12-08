@@ -586,6 +586,7 @@ class LiveTrader:
                 'price': close,
                 'p_up': p_up,
                 'p_dn': p_down,
+                'p_nt': 1.0 - p_up - p_down,
                 'sig': signal,
                 'regime': regime,
                 'vol': vol_int,
@@ -601,8 +602,8 @@ class LiveTrader:
         lines = []
         lines.append(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
-        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>5} {'DN':>5} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
-        lines.append("-" * 65)
+        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>5} {'DN':>5} {'NT':>5} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
+        lines.append("-" * 70)
         
         for res in scan_results:
             price = res['price']
@@ -615,7 +616,7 @@ class LiveTrader:
             pos_display = res['pos'] if res['pos'] else ""
             action = "BUY" if res['sig'] == 1 else ("SELL" if res['sig'] == -1 else "-")
             lines.append(
-                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>5.2f} {res['p_dn']:>5.2f} {action:>5} "
+                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>5.2f} {res['p_dn']:>5.2f} {res['p_nt']:>5.2f} {action:>5} "
                 f"{res['regime']:>5} {res['vol']:>+5.1f} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
         
