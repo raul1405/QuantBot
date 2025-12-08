@@ -425,9 +425,49 @@ class LiveTrader:
         data_map = self.engines['regime'].add_regimes_all(data_map)
         
         # Train Alpha
-        self.engines['alpha'] = AlphaEngine(self.config)
+        print("[TRAINING ALPHA ENGINE (XGBOOST)]")
         self.engines['alpha'].train_model(data_map)
+        
+        # Save Model State
+        self.save_model_state()
         print("[TRAINING] Complete.")
+
+    def save_model_state(self):
+        """Save trained model and scaler to disk."""
+        import joblib
+        from datetime import datetime
+        state = {
+            'model': self.engines['alpha'].model,
+            'scaler': self.engines['alpha'].scaler,
+            'timestamp': datetime.now().isoformat()
+        }
+        joblib.dump(state, 'model_state.joblib')
+        print("[SYSTEM] Model saved to model_state.joblib")
+
+    def load_model_state(self):
+        """Load model if recent (< 24h)."""
+        import joblib
+        import os
+        from datetime import datetime, timedelta
+        if not os.path.exists('model_state.joblib'):
+            return False
+            
+        try:
+            state = joblib.load('model_state.joblib')
+            saved_time = datetime.fromisoformat(state['timestamp'])
+            
+            # Check age (e.g., 24 hours max)
+            if datetime.now() - saved_time > timedelta(hours=24):
+                print("[SYSTEM] Saved model is too old (>24h). Retraining.")
+                return False
+                
+            self.engines['alpha'].model = state['model']
+            self.engines['alpha'].scaler = state['scaler']
+            print(f"[SYSTEM] Loaded Model from {saved_time} (Skipping Training)")
+            return True
+        except Exception as e:
+            print(f"[WARN] Failed to load model: {e}")
+            return False
 
     def run_cycle(self):
         print(f"\n[CYCLE] {datetime.now()} - Checking Signals...")
@@ -500,6 +540,7 @@ class LiveTrader:
         live_data = self.engines['ensemble'].add_ensemble_all(live_data)
         
         # 4. EXECUTION LOGIC
+```python
         # Get Open Positions
         current_positions = self.mt5.get_open_positions()
         # Map by Internal Symbol
@@ -510,6 +551,36 @@ class LiveTrader:
             if sym_int:
                 pos_map[sym_int] = p
         
+        # --- LIVE DASHBOARD ---
+        print("\n[MARKET SCANNER]")
+        print(f"{'SYMBOL':<10} | {'PROB':<6} | {'SIGNAL':<8} | {'ACTION'}")
+        print("-" * 50)
+        
+        # Collect stats for sorting
+        scan_results = []
+        for sym_int, df in live_data.items():
+            last_bar = df.iloc[-1]
+            prob = last_bar.get('Alpha_Prob', 0.5) # Assuming AlphaEngine puts prob here? 
+            # Wait, AlphaEngine puts 'S_Alpha' (Signal). Does it put Prob?
+            # Let's check AlphaEngine.add_signals_all logic.
+            # If not, we will rely on S_Alpha.
+            
+            signal = last_bar.get('S_Alpha', 0)
+            scan_results.append((sym_int, prob, signal))
+            
+        # Sort by deviation from 0.5 (most conviction)
+        # Note: If we don't have raw prob, we sort by Signal != 0
+        
+        # For MVP, just print active signals
+        active_signals = [x for x in scan_results if x[2] != 0]
+        if not active_signals:
+            print("No actionable signals (Quiet Market)")
+        else:
+            for res in active_signals:
+                sym, prob, sig = res
+                action = "BUY" if sig == 1 else "SELL"
+                print(f"{sym:<10} | {prob:.2f}   | {action:<8} | PENDING")
+
         # Iterate internal symbols
         for sym_int, df in live_data.items():
             last_bar = df.iloc[-1]
