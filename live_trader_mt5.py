@@ -10,6 +10,11 @@ import json
 import os
 import requests
 import sys
+from rich.console import Console
+from rich.table import Table
+
+# Rich console for proper terminal control
+console = Console()
 
 class SuppressStdout:
     def __enter__(self):
@@ -592,30 +597,40 @@ class LiveTrader:
         # Sort by Probability
         scan_results.sort(key=lambda x: x['prob'], reverse=True)
         
-        # === BUILD OUTPUT BUFFER ===
-        lines = []
-        lines.append(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Assets: {len(scan_results)} | Positions: {len(pos_map)}")
-        lines.append(f"Equity: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}% | Limit: {limit_pct*100:.1f}%")
-        lines.append("")
-        lines.append(f"{'SYM':<8} {'PROB':>5} {'SIG':>4} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'ATR%':>5} {'24h%':>6} {'SPR':>4} {'POS':>3}")
-        lines.append("-" * 70)
+        # === BUILD RICH TABLE ===
+        table = Table(title=f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Positions: {len(pos_map)}", show_header=True, header_style="bold cyan")
+        table.add_column("SYM", style="white", width=8)
+        table.add_column("PROB", justify="right", width=5)
+        table.add_column("SIG", justify="right", width=3)
+        table.add_column("ACT", justify="center", width=4)
+        table.add_column("TRND", justify="center", width=5)
+        table.add_column("VOL", justify="right", width=5)
+        table.add_column("ATR%", justify="right", width=5)
+        table.add_column("24h%", justify="right", width=6)
+        table.add_column("SPR", justify="right", width=4)
+        table.add_column("POS", justify="center", width=3)
         
         for res in scan_results:
             action = "BUY" if res['sig'] == 1 else ("SELL" if res['sig'] == -1 else "-")
-            lines.append(
-                f"{res['sym']:<8} {res['prob']:>5.2f} {res['sig']:>4} {action:>5} "
-                f"{res['regime']:>5} {res['vol']:>5.1f} {res['atr_pct']:>5.2f} "
-                f"{res['chg']:>+5.1f}% {res['spread']:>4.0f} {res['pos']:>3}"
+            sig_style = "green" if res['sig'] == 1 else ("red" if res['sig'] == -1 else "dim")
+            table.add_row(
+                res['sym'],
+                f"{res['prob']:.2f}",
+                str(res['sig']),
+                action,
+                res['regime'],
+                f"{res['vol']:.1f}",
+                f"{res['atr_pct']:.2f}",
+                f"{res['chg']:+.1f}%",
+                f"{res['spread']:.0f}",
+                res['pos'],
+                style=sig_style if res['sig'] != 0 else None
             )
         
-        # === CLEAR SCREEN (Windows-safe) ===
-        if os.name == 'nt':
-            os.system('cls')
-            sys.stdout.write("\n".join(lines))
-        else:
-            # ANSI: Cursor Home + Clear to End (faster on Unix)
-            sys.stdout.write("\033[H\033[J" + "\n".join(lines))
-        sys.stdout.flush()
+        # === CLEAR AND PRINT (Rich handles all terminal quirks) ===
+        console.clear()
+        console.print(f"[bold]Equity:[/] ${current_equity:,.0f} | [bold]PnL:[/] {daily_dd_pct*100:+.2f}% | [bold]Limit:[/] {limit_pct*100:.1f}%")
+        console.print(table)
         
         # 5. EXECUTION LOGIC (Silent unless trade happens)
         for sym_int, df in live_data.items():
