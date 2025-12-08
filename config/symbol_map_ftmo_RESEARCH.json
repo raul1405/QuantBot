@@ -1,0 +1,20 @@
+{
+    "_comment": "RESEARCH ONLY - NOT ACTIVE CONFIG",
+    "EURUSD=X": "EURUSD",
+    "GBPUSD=X": "GBPUSD",
+    "USDJPY=X": "USDJPY",
+    "USDCHF=X": "USDCHF",
+    "USDCAD=X": "USDCAD",
+    "AUDUSD=X": "AUDUSD",
+    "NZDUSD=X": "NZDUSD",
+    "EURJPY=X": "EURJPY",
+    "GBPJPY=X": "GBPJPY",
+    "GC=F": "XAUUSD",
+    "SI=F": "XAGUSD",
+    "ES=F": "US500",
+    "NQ=F": "US100",
+    "YM=F": "US30",
+    "BTC-USD": "BTCUSD",
+    "ETH-USD": "ETHUSD",
+    "DAX": "GER40"
+}

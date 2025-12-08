@@ -540,7 +540,7 @@ class LiveTrader:
         live_data = self.engines['ensemble'].add_ensemble_all(live_data)
         
         # 4. EXECUTION LOGIC
-```python
+
         # Get Open Positions
         current_positions = self.mt5.get_open_positions()
         # Map by Internal Symbol
