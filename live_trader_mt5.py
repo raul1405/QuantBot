@@ -608,11 +608,13 @@ class LiveTrader:
                 f"{res['chg']:>+5.1f}% {res['spread']:>4.0f} {res['pos']:>3}"
             )
         
-        # === ANSI: Cursor Home + Clear to End ===
-        # \033[H = Move cursor to top-left (Home)
-        # \033[J = Clear from cursor to end of screen
-        output = "\033[H\033[J" + "\n".join(lines)
-        sys.stdout.write(output)
+        # === CLEAR SCREEN (Windows-safe) ===
+        if os.name == 'nt':
+            os.system('cls')
+            sys.stdout.write("\n".join(lines))
+        else:
+            # ANSI: Cursor Home + Clear to End (faster on Unix)
+            sys.stdout.write("\033[H\033[J" + "\n".join(lines))
         sys.stdout.flush()
         
         # 5. EXECUTION LOGIC (Silent unless trade happens)
