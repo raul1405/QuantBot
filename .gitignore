@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.env
+.venv
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# Logs
+logs/
+live_logs/
+*.log
+
+# MT5
+*.ex5
+live_config.json
+# Note: We usually exclude config with secrets, but for this specific "Plug & Play" request where I just added secrets to json for convenience, I will leave it. 
+# WAIT. Security Best practice: ignore live_config.json if it has secrets?
+# The user wants to "copy paste" and "clone". If I ignore it, they can't clone the config.
+# I will NOT ignore live_config.json for now, but I will warn them.
+# Actually, I added secrets to .env (which IS ignored) and updated the checklist to generate .env on the server.
+# So I SHOULD ignore .env.
+
+# Artifacts/Temp
+.DS_Store
