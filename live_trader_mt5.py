@@ -487,7 +487,7 @@ class LiveTrader:
         current_tickets = [p['ticket'] for p in current_positions]
         self.logger.check_closed_trades(current_tickets)
         
-        # 1. RISK CHECK
+        # 1. ACCOUNT & RISK CHECK
         acct = self.mt5.get_account_info()
         if acct is None: return
 
@@ -536,42 +536,86 @@ class LiveTrader:
             live_data = self.engines['alpha'].add_signals_all(live_data)
             live_data = self.engines['ensemble'].add_ensemble_all(live_data)
         
-        # 4. Find Top Signal
-        top_sym = None
-        top_prob = 0.0
-        active_signals = 0
-        
-        for sym_int, df in live_data.items():
-            last_bar = df.iloc[-1]
-            signal = last_bar.get('S_Alpha', 0)
-            p_up = last_bar.get('prob_up', 0.0)
-            p_down = last_bar.get('prob_down', 0.0)
-            prob = p_up if signal == 1 else (p_down if signal == -1 else max(p_up, p_down))
-            
-            if prob > top_prob:
-                top_prob = prob
-                top_sym = SYMBOL_MAP.get(sym_int, sym_int)
-            if signal != 0:
-                active_signals += 1
-        
-        # 5. Position Count
-        open_count = len(current_positions)
-        
-        # === SINGLE LINE STATUS (Overwrites in place) ===
-        status = f"{datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}% | Top: {top_sym}({top_prob:.2f}) | Signals: {active_signals} | Pos: {open_count}"
-        
-        # Pad to fixed width to clear previous longer text
-        sys.stdout.write(f"\r{status:<100}")
-        sys.stdout.flush()
-        
-        # 6. EXECUTION LOGIC (Silent unless trade happens)
+        # 4. BUILD SCANNER TABLE
         current_positions = self.mt5.get_open_positions()
         pos_map = {}
         for p in current_positions:
             sym_int = REVERSE_MAP.get(p['symbol'])
             if sym_int:
                 pos_map[sym_int] = p
-
+        
+        scan_results = []
+        for sym_int, df in live_data.items():
+            last_bar = df.iloc[-1]
+            prev_bar = df.iloc[-25] if len(df) >= 25 else df.iloc[0]  # ~24h ago for H1
+            
+            signal = last_bar.get('S_Alpha', 0)
+            p_up = last_bar.get('prob_up', 0.0)
+            p_down = last_bar.get('prob_down', 0.0)
+            prob = p_up if signal == 1 else (p_down if signal == -1 else max(p_up, p_down))
+            
+            regime = str(last_bar.get('Trend_Regime', '?'))[:4]  # Shorten
+            vol_int = float(last_bar.get('Vol_Intensity', 0.0))
+            
+            # ATR% = ATR / Close (volatility as % of price)
+            atr = last_bar.get('ATR', 0)
+            close = last_bar.get('Close', 1)
+            atr_pct = (atr / close) * 100 if close else 0
+            
+            # 24h Change %
+            chg_24h = ((close - prev_bar['Close']) / prev_bar['Close']) * 100 if prev_bar['Close'] else 0
+            
+            # Spread (from MT5 tick)
+            mt5_sym = SYMBOL_MAP[sym_int]
+            tick = mt5.symbol_info_tick(mt5_sym)
+            spread_pts = (tick.ask - tick.bid) * 10000 if tick else 0  # Approx pips for FX
+            
+            # Position Status
+            pos_status = ""
+            if sym_int in pos_map:
+                p = pos_map[sym_int]
+                pos_status = "L" if p['type'] == 'BUY' else "S"
+            
+            scan_results.append({
+                'sym': mt5_sym,
+                'prob': prob,
+                'sig': signal,
+                'regime': regime,
+                'vol': vol_int,
+                'atr_pct': atr_pct,
+                'chg': chg_24h,
+                'spread': spread_pts,
+                'pos': pos_status,
+                'sym_int': sym_int
+            })
+            
+        # Sort by Probability
+        scan_results.sort(key=lambda x: x['prob'], reverse=True)
+        
+        # === BUILD OUTPUT BUFFER ===
+        lines = []
+        lines.append(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Assets: {len(scan_results)} | Positions: {len(pos_map)}")
+        lines.append(f"Equity: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}% | Limit: {limit_pct*100:.1f}%")
+        lines.append("")
+        lines.append(f"{'SYM':<8} {'PROB':>5} {'SIG':>4} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'ATR%':>5} {'Δ24h':>6} {'SPR':>4} {'POS':>3}")
+        lines.append("-" * 70)
+        
+        for res in scan_results:
+            action = "BUY" if res['sig'] == 1 else ("SELL" if res['sig'] == -1 else "-")
+            lines.append(
+                f"{res['sym']:<8} {res['prob']:>5.2f} {res['sig']:>4} {action:>5} "
+                f"{res['regime']:>5} {res['vol']:>5.1f} {res['atr_pct']:>5.2f} "
+                f"{res['chg']:>+5.1f}% {res['spread']:>4.0f} {res['pos']:>3}"
+            )
+        
+        # === ANSI: Cursor Home + Clear to End ===
+        # \033[H = Move cursor to top-left (Home)
+        # \033[J = Clear from cursor to end of screen
+        output = "\033[H\033[J" + "\n".join(lines)
+        sys.stdout.write(output)
+        sys.stdout.flush()
+        
+        # 5. EXECUTION LOGIC (Silent unless trade happens)
         for sym_int, df in live_data.items():
             last_bar = df.iloc[-1]
             signal = last_bar.get('S_Alpha', 0) 
@@ -614,8 +658,8 @@ class LiveTrader:
                 sl_price = price - (sl_dist * target_direction)
                 tp_price = price + (sl_dist * 2.0 * target_direction)
                 
-                # Print trade on NEW line (so it doesn't get overwritten)
-                print(f"\n[TRADE] {mt5_sym} {'BUY' if target_direction==1 else 'SELL'} {volume} @ {price:.5f}")
+                # Log trade (prints on new line after dashboard)
+                print(f"\n>>> [TRADE] {mt5_sym} {'BUY' if target_direction==1 else 'SELL'} {volume} @ {price:.5f}")
                 
                 ticket = self.mt5.open_order(mt5_sym, 'BUY' if target_direction==1 else 'SELL', volume, sl_price, tp_price)
                 if ticket:
@@ -630,7 +674,7 @@ class LiveTrader:
             elif open_pos:
                 current_dir = 1 if open_pos['type'] =='BUY' else -1
                 if target_direction != 0 and target_direction != current_dir:
-                    print(f"\n[REVERSE] {mt5_sym}")
+                    print(f"\n>>> [REVERSE] {mt5_sym}")
                     self.mt5.close_position(open_pos['ticket'])
 
     def loop(self):
