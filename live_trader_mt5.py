@@ -597,7 +597,7 @@ class LiveTrader:
         lines.append(f"QuantBot Live | {datetime.now().strftime('%H:%M:%S')} | Assets: {len(scan_results)} | Positions: {len(pos_map)}")
         lines.append(f"Equity: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}% | Limit: {limit_pct*100:.1f}%")
         lines.append("")
-        lines.append(f"{'SYM':<8} {'PROB':>5} {'SIG':>4} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'ATR%':>5} {'Δ24h':>6} {'SPR':>4} {'POS':>3}")
+        lines.append(f"{'SYM':<8} {'PROB':>5} {'SIG':>4} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'ATR%':>5} {'24h%':>6} {'SPR':>4} {'POS':>3}")
         lines.append("-" * 70)
         
         for res in scan_results:
