@@ -33,7 +33,7 @@ SYMBOL_MAP = {
     
     # --- INDICES (CFDs) ---
     "ES=F": "US500",      # S&P 500 (Confirmed)
-    "NQ=F": "USTECH100",  # Nasdaq 100 (Confirmed)
+    "NQ=F": None,         # Nasdaq 100 (Temporarily Disabled - causing lag)
     "YM=F": "US30",       # Dow Jones (Confirmed)
     "RTY=F": None,        # Russell 2000 (Not Found)
     
@@ -296,7 +296,7 @@ class LiveTrader:
         self.mt5 = connector
         # Filter out symbols mapped to None (unavailable on broker)
         self.target_symbols = [k for k, v in SYMBOL_MAP.items() if v is not None]
-        print(f"[INIT] Universe trimmed to {len(self.target_symbols)} available assets.")
+        print(f"[INIT] Universe trimmed to {len(self.target_symbols)} available assets: {self.target_symbols}")
         self.gov_config = self.load_governance()
         
         mode = self.gov_config.get("mode", "paper")
