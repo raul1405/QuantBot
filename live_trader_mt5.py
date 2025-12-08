@@ -32,19 +32,19 @@ SYMBOL_MAP = {
     "GBPCAD=X": "GBPCAD", "EURNZD=X": "EURNZD",
     
     # --- INDICES (CFDs) ---
-    "ES=F": "US500",   # S&P 500
-    "NQ=F": "US100",   # Nasdaq 100
-    "YM=F": "US30",    # Dow Jones
-    "RTY=F": "US2000", # Russell 2000
+    "ES=F": "US500",      # S&P 500 (Confirmed)
+    "NQ=F": "USTECH100",  # Nasdaq 100 (Confirmed)
+    "YM=F": "US30",       # Dow Jones (Confirmed)
+    "RTY=F": None,        # Russell 2000 (Not Found)
     
     # --- COMMODITIES ---
-    "GC=F": "XAUUSD",  # Gold
-    "CL=F": "USOIL",   # Crude Oil (WTI)
-    "NG=F": "NATGAS",  # Natural Gas
+    "GC=F": "XAUUSD",     # Gold (Confirmed)
+    "CL=F": None,         # Crude Oil (Not Found)
+    "NG=F": None,         # Natural Gas (Not Found)
     
     # --- CRYPTO ---
-    "BTC-USD": "BTCUSD",
-    "ETH-USD": "ETHUSD",
+    "BTC-USD": None,      # (Not Found)
+    "ETH-USD": None,      # (Not Found)
 }
 # Reverse map for internal logic
 REVERSE_MAP = {v: k for k, v in SYMBOL_MAP.items()}
@@ -294,7 +294,9 @@ class TradeLogger:
 class LiveTrader:
     def __init__(self, connector):
         self.mt5 = connector
-        self.target_symbols = [k for k in SYMBOL_MAP.keys()]
+        # Filter out symbols mapped to None (unavailable on broker)
+        self.target_symbols = [k for k, v in SYMBOL_MAP.items() if v is not None]
+        print(f"[INIT] Universe trimmed to {len(self.target_symbols)} available assets.")
         self.gov_config = self.load_governance()
         
         mode = self.gov_config.get("mode", "paper")
