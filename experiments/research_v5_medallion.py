@@ -77,23 +77,42 @@ def fetch_tick_alpha(symbol, hours=24):
             resampled.append({'count': 0, 'delta': 0, 'buy_vol': 0, 'sell_vol': 0})
             continue
             
-        # Calc Delta
-        # MT5 flags are bitmasks. 
-        # BUY = 32 (or 32+others), SELL = 64
-        # Note: Logic depends on broker. Often (flags & mt5.TICK_FLAG_BUY) == mt5.TICK_FLAG_BUY
+        # Calc Delta -> Use TICK RULE (Price Change) instead of Flags
+        # Flags are unreliable on CFDs/FX.
+        # Logic: If Price > PrevPrice -> Buy. If Price < PrevPrice -> Sell.
         
-        buys = bin_ticks[ (bin_ticks['flags'] & mt5.TICK_FLAG_BUY) == mt5.TICK_FLAG_BUY ]
-        sells = bin_ticks[ (bin_ticks['flags'] & mt5.TICK_FLAG_SELL) == mt5.TICK_FLAG_SELL ]
+        # We need to slice a bit wider or just use what we have. 
+        # For simplicity, we calculate diffs within the bin.
         
-        buy_vol = buys['volume'].sum() if not buys.empty else 0.0
-        sell_vol = sells['volume'].sum() if not sells.empty else 0.0
+        # Make copies to avoid SettingWithCopy warnings
+        b_ticks = bin_ticks.copy()
         
-        # If flags are empty (some brokers dont populate), try Price vs Bid/Ask?
-        # Fallback: Tick Direction?
-        # For FTMO, flags usually work.
+        # Use 'ask' or 'bid'? 'bid' is standard for FX.
+        # If 'last' is available (non-zero), use it.
+        # But for FX 'last' is often 0.
+        price_col = 'last' if b_ticks['last'].sum() > 0 else 'bid'
         
-        delta = buy_vol - sell_vol
+        b_ticks['diff'] = b_ticks[price_col].diff().fillna(0.0)
         
+        # Direction: 1 (Buy), -1 (Sell), 0 (Neutral/Continuation)
+        # For 0, we should really carry forward previous direction, but for H1 agg, ignoring is fine.
+        b_ticks['dir'] = np.sign(b_ticks['diff'])
+        
+        # Volume Delta
+        # If volume is missing (all 0), we default to Count Delta (1 per tick)
+        has_volume = b_ticks['volume'].sum() > 0
+        
+        if has_volume:
+            b_ticks['signed_vol'] = b_ticks['dir'] * b_ticks['volume']
+            delta = b_ticks['signed_vol'].sum()
+            buy_vol = b_ticks[b_ticks['dir'] > 0]['volume'].sum()
+            sell_vol = b_ticks[b_ticks['dir'] < 0]['volume'].sum()
+        else:
+            # Count Delta
+            delta = b_ticks['dir'].sum() 
+            buy_vol = (b_ticks['dir'] > 0).sum()
+            sell_vol = (b_ticks['dir'] < 0).sum()
+            
         resampled.append({
             'count': len(bin_ticks),
             'delta': delta,
