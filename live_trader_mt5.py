@@ -42,9 +42,12 @@ SYMBOL_MAP = {
     "EURUSD=X": "EURUSD", "USDJPY=X": "USDJPY", "GBPUSD=X": "GBPUSD", "USDCHF=X": "USDCHF",
     "USDCAD=X": "USDCAD", "AUDUSD=X": "AUDUSD", "NZDUSD=X": "NZDUSD",
     "EURGBP=X": "EURGBP", "EURJPY=X": "EURJPY", "GBPJPY=X": "GBPJPY", "AUDJPY=X": "AUDJPY",
-    "EURAUD=X": "EURAUD", "EURCHF=X": "EURCHF", "AUDNZD=X": "AUDNZD", "AUDCAD=X": "AUDCAD",
-    "CADJPY=X": "CADJPY", "NZDJPY=X": "NZDJPY", "GBPCHF=X": "GBPCHF", "GBPAUD=X": "GBPAUD",
-    "GBPCAD=X": "GBPCAD", "EURNZD=X": "EURNZD",
+    "EURAUD=X": "EURAUD", "EURCHF=X": "EURCHF", 
+    
+    # --- TOXIC PAIRS (DISABLED) ---
+    "AUDNZD=X": None, "AUDCAD=X": None, "CADJPY=X": None, 
+    "NZDJPY=X": None, "GBPCHF=X": None, "GBPAUD=X": None,
+    "GBPCAD=X": None, "EURNZD=X": None,
     
     # --- INDICES (CFDs) - DISABLED (FX ONLY STRATEGY) ---
     "ES=F": None,      # "US500",
