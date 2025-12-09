@@ -318,9 +318,16 @@ class LiveTrader:
         print(f"[INIT] Live Trader Mode: {mode.upper()}")
         
         self.logger = TradeLogger(mode=mode)
+        # 2. Initialize Backtest Engines (Reused for Logic)
         self.config = Config()
         
-        # Initialize Engines
+        # CRITICAL OVERRIDES FOR LIVE EXECUTION
+        self.config.mode = "LIVE"
+        self.config.use_rank_logic = True
+        self.config.rank_top_n = 1
+        # Ensure costs are matched
+        self.config.transaction_cost = 0.0005
+        
         self.engines = {
             'feature': FeatureEngine(self.config),
             'regime': RegimeEngine(self.config),
