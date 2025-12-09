@@ -252,7 +252,7 @@ class TradeLogger:
     # ... (on_entry unchanged except save_state) ...
     
     def on_entry(self, ticket, symbol, direction, size, price, context):
-        print(f"[LOG] Registering Trade #{ticket} ({symbol})")
+        print(f"[EXECUTION] Confirmed Trade #{ticket} ({symbol}) | Type: {direction} | Size: {size}")
         self.active_trades[ticket] = {
             'Symbol': symbol,
             'Direction': direction,
@@ -405,6 +405,12 @@ class LiveTrader:
         
         mode = self.gov_config.get("mode", "paper")
         print(f"[INIT] Live Trader Mode: {mode.upper()}")
+        
+        # Verify Account Connection
+        acct = self.mt5.account_info()
+        if acct:
+            print(f"[INIT] Connected to Account: {acct.login} | Server: {acct.server} | Balance: {acct.balance}")
+            print(f"[INIT] Trading Allowed: {acct.trade_allowed}")
         
         self.logger = TradeLogger(mode=mode)
         # 2. Initialize Backtest Engines (Reused for Logic)
