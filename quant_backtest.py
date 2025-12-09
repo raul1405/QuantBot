@@ -1237,8 +1237,41 @@ class Account:
         self.current_streak_len = 0
         self.current_streak_sign = 0 # 1=Win, -1=Loss
         
-    def calculate_position_size(self, price: float, stop_loss_dist: float) -> float:
-        risk_amount = self.equity * self.config.risk_per_trade
+    def calculate_position_size(self, price: float, stop_loss_dist: float, prob_win: float = 0.5) -> float: # Added prob_win
+        # Kelly Criterion
+        # f = p - (1-p)/b
+        # We assume b (R-Multiple) ~ 1.2 (Conservative estimate from backtest)
+        # To be safe, use b=1.0 for calculation (Under-betting is safer).
+        
+        b = 1.0 
+        kelly_fraction = prob_win - (1 - prob_win) / b
+        
+        # Half-Kelly for safety
+        safe_fraction = kelly_fraction * 0.5
+        
+        # Hard Cap from Risk Officer (0.8%)
+        # If safe_fraction is negative (P<0.5), we shouldn't trade anyway, but let's clamp.
+        if safe_fraction < 0: safe_fraction = 0.0
+        
+        # Dynamic Risk Limit
+        max_risk_pct = self.config.risk_per_trade # 0.8%
+        
+        # Final Risk % to use
+        # If High Confidence (P=0.6) -> Kelly ~ 0.2 -> Half ~ 0.1 -> Cap at 0.008
+        # Wait, Kelly often suggests HUGE size (10-20%).
+        # So essentially this becomes "Trade Full Size unless P is very low".
+        # Or should we scale relative to the Limit?
+        # Standard interpretation: "Risk Limit is the MAX".
+        # We use Min(Limit, Kelly).
+        
+        used_risk_pct = min(max_risk_pct, safe_fraction)
+        
+        # Also, scale down for low probability?
+        # If P is just above 0.5 (e.g. 0.51), Kelly is tiny.
+        # This gives us the "Conviction Sizing" automatically.
+        
+        risk_amount = self.equity * used_risk_pct
+        
         if stop_loss_dist <= 0: return 0.0
         size = risk_amount / stop_loss_dist
         max_size = (self.equity * self.config.leverage) / price
@@ -1526,14 +1559,20 @@ class Backtester:
                             sl_price = close + sl_dist
                             tp_price = close - (sl_dist * self.config.tp_mult_min)
                         
-                        raw_size = self.account.calculate_position_size(close, sl_dist)
-                        signal_strength = min(abs(score), 1.0)
-                        final_size = raw_size * signal_strength
+                            # Get Probability for Sizing
+                            prob_win = row.get('prob_max', 0.5) if direction != 0 else 0.5
+                            # If Short, prob_max is correct? prob_max is max(up, down). Yes.
+                            
+                            size = self.account.calculate_position_size(close, sl_dist, prob_win=prob_win)
+                            
+                            if size <= 0: continue
+                            
+                            entry_risk_dollars = size * sl_dist
                         
                         # 3. High Volatility Dampener (Reduce Churn)
                         vol_regime = row.get('Vol_Regime', 'NORMAL')
                         if vol_regime == 'HIGH':
-                            final_size *= 0.5
+                            size *= 0.5
                         
                         if last_limit_hit_date is not None:
                             if (current_day - last_limit_hit_date).days < self.config.drawdown_penalty_days:

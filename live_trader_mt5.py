@@ -376,6 +376,25 @@ class TickEngine:
             
         return delta_ratio
 
+    def calculate_dynamic_size(self, equity, price, sl_dist, prob_win, max_risk_pct):
+        # Kelly Sizing (Online)
+        if sl_dist <= 0: return 0.0
+        
+        b = 1.0 # Conservative R
+        kelly = prob_win - (1 - prob_win) / b
+        safe_fraction = kelly * 0.5
+        if safe_fraction < 0: safe_fraction = 0.0
+        
+        # Cap at Max Risk (Risk Officer)
+        used_risk_pct = min(max_risk_pct, safe_fraction)
+        
+        risk_amt = equity * used_risk_pct
+        size = risk_amt / sl_dist
+        
+        # Max Leverage Check (e.g. 100x)
+        max_size = (equity * 100) / price
+        return min(size, max_size), used_risk_pct
+
 class LiveTrader:
     def __init__(self, connector):
         self.mt5 = connector
@@ -571,6 +590,30 @@ class LiveTrader:
             print(f"[WARN] Failed to load model: {e}")
             return False
 
+    def check_exposure_limit(self, symbol, direction, new_volume):
+        # ... existing ...
+        return True
+
+    def calculate_dynamic_size(self, equity, price, sl_dist, prob_win, contract_size):
+        if sl_dist <= 0: return 0.0
+        
+        b = 1.0 
+        kelly = prob_win - (1 - prob_win) / b
+        safe_fraction = kelly * 0.5
+        if safe_fraction < 0: safe_fraction = 0.0
+        
+        max_risk = self.config.risk_per_trade # 0.008
+        used_risk = min(max_risk, safe_fraction)
+        
+        risk_amt = equity * used_risk
+        
+        # Volume = Risk / (SL_Dist * ContractSize)
+        # SL_Dist is price difference.
+        # Dollar Risk = Vol * Size * SL_Dist
+        volume = risk_amt / (sl_dist * contract_size)
+        
+        return volume, used_risk
+
     def run_cycle(self):
         # 0. CHECK CLOSED TRADES (Silent)
         current_positions = self.mt5.get_open_positions()
@@ -737,29 +780,33 @@ class LiveTrader:
             open_pos = pos_map.get(sym_int)
             
             if not open_pos and target_direction != 0:
-                balance = acct.balance
-                vol_int = last_bar.get('Vol_Intensity', 0.0)
-                vol_mult = 1.0 / (1.0 + max(vol_int, 0.0)**2)
-                vol_mult = max(0.3, min(vol_mult, 1.2))
-                risk_amt = balance * 0.003 * vol_mult
+                # Need probability for sizing
+                p_up = last_bar.get('prob_up', 0.5)
+                p_down = last_bar.get('prob_down', 0.5)
+                prob_win = p_up if target_direction == 1 else p_down
                 
-                atr = last_bar['ATR']
-                sl_dist = atr * 1.5
+                atr = last_bar.get('ATR', 0.0)
+                if atr <= 0: continue
+                sl_dist = atr * 2.0 
                 
                 symbol_info = mt5.symbol_info(mt5_sym)
                 if not symbol_info: continue
-                tick_size = symbol_info.trade_tick_size
-                tick_value = symbol_info.trade_tick_value
-                if tick_size == 0 or tick_value == 0: continue
+                contract_size = symbol_info.trade_contract_size if symbol_info else 100000
                 
-                sl_points = sl_dist / tick_size
-                loss_per_lot = sl_points * tick_value
-                volume = 0.01 if loss_per_lot == 0 else risk_amt / loss_per_lot
+                price = symbol_info.ask if target_direction == 1 else symbol_info.bid
                 
+                # Dynamic Sizing Call
+                # Returns: volume, used_risk_pct
+                volume, used_risk_pct = self.calculate_dynamic_size(acct.equity, price, sl_dist, prob_win, self.config.risk_per_trade)
+                
+                risk_amt = acct.equity * used_risk_pct
+                
+                # Rounding
                 step = symbol_info.volume_step
                 volume = round(volume / step) * step
                 volume = max(volume, symbol_info.volume_min)
                 volume = min(volume, symbol_info.volume_max)
+                
                 if volume <= 0: continue
                 
                 if not self.check_exposure_limit(mt5_sym, target_direction, volume): continue
@@ -768,8 +815,11 @@ class LiveTrader:
                 sl_price = price - (sl_dist * target_direction)
                 tp_price = price + (sl_dist * 2.0 * target_direction)
                 
+                # Restore Vol Intensity for logging
+                vol_int = last_bar.get('Vol_Intensity', 0.0)
+                
                 # Log trade (prints on new line after dashboard)
-                print(f"\n>>> [TRADE] {mt5_sym} {'BUY' if target_direction==1 else 'SELL'} {volume} @ {price:.5f}")
+                print(f"\n>>> [TRADE] {mt5_sym} {'BUY' if target_direction==1 else 'SELL'} {volume} @ {price:.5f} (Risk: {used_risk_pct*100:.2f}%)")
                 
                 ticket = self.mt5.open_order(mt5_sym, 'BUY' if target_direction==1 else 'SELL', volume, sl_price, tp_price)
                 if ticket:
@@ -777,7 +827,8 @@ class LiveTrader:
                         'Risk_Dollars': risk_amt,
                         'Entry_Trend_Regime': str(last_bar.get('Trend_Regime', '')),
                         'Entry_Vol_Intensity': float(vol_int),
-                        'Entry_Hour': int(last_bar.get('Hour', 0))
+                        'Entry_Hour': int(last_bar.get('Hour', 0)),
+                        'Entry_Prob': float(prob_win)
                     }
                     self.logger.on_entry(ticket, mt5_sym, 'LONG' if target_direction==1 else 'SHORT', volume, price, context)
 
