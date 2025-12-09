@@ -1,8 +1,9 @@
 {
     "mode": "paper",
-    "account_leverage": 30,
+    "risk_per_trade": 0.008,
+    "max_open_positions": 3,
+    "leverage": 100,
     "credentials": {
-        "login": 0,
         "password": "YOUR_PASSWORD",
         "server": "MetaQuotes-Demo"
     },

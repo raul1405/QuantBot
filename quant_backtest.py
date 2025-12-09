@@ -154,8 +154,8 @@ class Config:
     
     # === WFO Parameters (Walk-Forward Optimization) ===
     # For Hourly data (approx 7 trading hours/day * 20 days = 140 bars/month)
-    wfo_train_bars: int = 1500   # Approx 10 months history
-    wfo_test_bars: int = 140     # Approx 1 month OOS prediction
+    wfo_train_bars: int = 500  # Reduced from 1500 to ensure fitting in test set
+    wfo_test_bars: int = 100   # Reduced from 140     # Approx 1 month OOS prediction
     mode: str = "BACKTEST"       # "BACKTEST" (WFO) or "LIVE" (Full Train)
     
     # === Stat Arb Config ===
@@ -884,9 +884,11 @@ class AlphaEngine:
             return data
             
         # LIVE MODE: Train on everything, predict on everything (Inference)
-        if hasattr(self.config, 'mode') and self.config.mode in ["LIVE", "PAPER", "SHADOW"]:
-             print(f"\n[GENERATING ALPHA SIGNALS] (Mode: {self.config.mode} - Full Retrain)")
-             self.train_model(data) # Trains single model on everything
+        # OR if Model is already trained (from generic Backtest loop), just predict (Inference)
+        if (hasattr(self.config, 'mode') and self.config.mode in ["LIVE", "PAPER", "SHADOW"]) or (self.model is not None):
+             print(f"\n[GENERATING ALPHA SIGNALS] (Mode: {self.config.mode} - Inference)")
+             if self.model is None: # Only train if not trained
+                 self.train_model(data) 
              
              processed = {}
              for sym, df in data.items():
@@ -2104,6 +2106,11 @@ def main():
         print("\n[MC MODE 2] Fractional R-Multiple Bootstrap (FTMO-Aware)")
         monte_carlo.run_bootstrap_fractional(bt.account.trade_history, n_sims=config.mc_simulations)
         
+        if bt.account.trade_history:
+            df_trades = pd.DataFrame(bt.account.trade_history)
+            df_trades.to_csv('backtest_results.csv', index=False)
+            print(f"\n[SAVED] Trade log saved to backtest_results.csv ({len(df_trades)} trades)")
+            
         print("\n[FTMO CHALLENGE ANALYSIS FINALIZED]") 
         
     except KeyboardInterrupt:
