@@ -445,16 +445,20 @@ class LiveTrader:
         
         current_margin = account_info.margin
         # Estimate new trade margin
-        # Standard Lot = 100,000 units. Margin = (Price * Vol * 100k) / Leverage
-        sym_price = self.mt5.symbol_info_tick(symbol).ask
-        new_notional = sym_price * volume * 100000 
+        # Margin = (Price * Vol * ContractSize) / Leverage
+        
+        sym_info = self.mt5.symbol_info(symbol)
+        contract_size = sym_info.trade_contract_size if sym_info else 100000
+        
+        sym_price = sym_info.ask if sym_info else 0.0
+        new_notional = sym_price * volume * contract_size
         new_margin = new_notional / leverage
         
         future_margin = current_margin + new_margin
         margin_limit = equity * 0.30 # Max 30% Used
         
         if future_margin > margin_limit:
-            print(f"  [RISK BLOCK] Margin Limit: Used {future_margin:.2f} > Limit {margin_limit:.2f}")
+            print(f"  [RISK BLOCK] Margin Limit: Used {future_margin:,.2f} > Limit {margin_limit:,.2f} (Vol: {volume}, Size: {contract_size})")
             return False
             
         # 3. Cluster Exposure (USD Net)
@@ -481,10 +485,13 @@ class LiveTrader:
             
             # approx price for check
             # We need Quote currency conversion if symbol is weird, 
-            # but for major pairs, Price * Vol * 100k roughly approximates exposure value in USD 
-            # (if USD is base or quote, it's close enough for a heuristic).
+            # but for major pairs, Price * Vol * Size roughly approximates exposure value in USD
             p_price = p['price_open']
-            p_notional = p_price * vol * 100000
+            
+            p_sym_info = self.mt5.symbol_info(s)
+            p_size = p_sym_info.trade_contract_size if p_sym_info else 100000
+            
+            p_notional = p_price * vol * p_size
             
             if "USD" in s:
                 if s.startswith("USD"):
