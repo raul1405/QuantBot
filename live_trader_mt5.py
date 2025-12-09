@@ -753,7 +753,13 @@ class LiveTrader:
                 p = pos_map[sym_int]
                 pos_status = "L" if p['type'] == 'BUY' else "S"
             
+            # Distance to Trigger
+            threshold = self.config.ml_prob_threshold_long # 0.505
+            max_prob = max(p_up, p_down)
+            dist_val = threshold - max_prob
+                
             scan_results.append({
+                'dist': dist_val,
                 'spread': spread_pts,
                 'sym': mt5_sym,
                 'price': close,
@@ -776,9 +782,9 @@ class LiveTrader:
         lines = []
         lines.append(f"QuantBot v5 (Verified) | Risk: 3.3% | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
-        # Added DELTA column, Swapped NT for SPD
-        lines.append(f"{'SYM':<8} {'PRICE':>9} {'SPD':>4} {'UP':>4} {'DN':>4} {'ACT':>4} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
-        lines.append("-" * 75)
+        # Added DELTA column, Swapped NT for SPD, Added DIST
+        lines.append(f"{'SYM':<8} {'PRICE':>9} {'SPD':>4} {'UP':>4} {'DN':>4} {'ACT':>4} {'DIST':>5} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
+        lines.append("-" * 88)
         
         for res in scan_results:
             price = res['price']
@@ -795,7 +801,7 @@ class LiveTrader:
             d_str = f"{res['delta']:+.2f}"
             
             lines.append(
-                f"{res['sym']:<8} {price_str:>9} {res['spread']:>4} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {action:>4} "
+                f"{res['sym']:<8} {price_str:>9} {res['spread']:>4} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {action:>4} {res['dist']:>5.2f} "
                 f"{res['regime']:>4} {res['vol']:>+4.1f} {d_str:>5} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
             
