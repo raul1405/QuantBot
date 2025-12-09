@@ -124,14 +124,14 @@ class Config:
     alpha_return_threshold: float = 0.001
     alpha_train_split: float = 0.7
     alpha_model_params: Dict = field(default_factory=lambda: {
-        'objective': 'multi:softprob',
-        'num_class': 3,
-        'max_depth': 3,          # Reduced from 6 to prevent overfitting
+        'objective': 'reg:squarederror', # EXPERIMENT C: REGRESSION
+        # 'num_class': 3, # REMOVED for Regression
+        'max_depth': 3,
         'eta': 0.1,
-        'gamma': 0.2,            # Increased regularization (0.1 -> 0.2)
-        'subsample': 0.7,        # Increased noise
+        'gamma': 0.2,
+        'subsample': 0.7,
         'colsample_bytree': 0.8,
-        'eval_metric': 'mlogloss',
+        'eval_metric': 'rmse',
         'seed': 42
     })
     # THRESHOLD OPTIMIZATION: Signal Force (0.505)
@@ -479,9 +479,40 @@ class FeatureEngine:
     def add_features_all(self, data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         print(f"\n[CALCULATING FEATURES]")
         print("-" * 40)
+        
+        # 1. EXTRACT GLOBAL FEATURES (Experiment A)
+        global_context = None
+        if 'SPY' in data:
+            spy_df = data['SPY'].copy()
+            # Calculate SPY metrics directly here to ensure they exist before broadcast
+            spy_df['SPY_Ret_1d'] = spy_df['Close'].pct_change(1)
+            spy_df['SPY_Vol'] = spy_df['Close'].pct_change(1).rolling(20).std()
+            global_context = spy_df[['SPY_Ret_1d', 'SPY_Vol']]
+            
         processed = {}
-        for sym, df in data.items():
+        items = list(data.items())
+        
+        for sym, df in items:
+            # Add Local Features
             df_feat = self.add_features(df)
+            
+            # BROADCAST GLOBAL FEATURES
+            if global_context is not None and sym != 'SPY':
+                # Join on index (Time)
+                common_idx = df_feat.index.intersection(global_context.index)
+                
+                df_feat.loc[common_idx, 'SPY_Ret_1d'] = global_context.loc[common_idx, 'SPY_Ret_1d']
+                df_feat.loc[common_idx, 'SPY_Vol'] = global_context.loc[common_idx, 'SPY_Vol']
+                
+                # Fill missing (e.g. holidays/gaps)
+                df_feat['SPY_Ret_1d'] = df_feat['SPY_Ret_1d'].fillna(0)
+                df_feat['SPY_Vol'] = df_feat['SPY_Vol'].fillna(0)
+            
+            # For SPY itself, ensure columns exist
+            if sym == 'SPY':
+                df_feat['SPY_Ret_1d'] = df_feat['Close'].pct_change(1)
+                df_feat['SPY_Vol'] = df_feat['Close'].pct_change(1).rolling(20).std()
+                
             processed[sym] = df_feat
             print(f"  {sym}: {len(df)} bars, {len(df_feat)} valid after indicators")
             
@@ -633,14 +664,15 @@ class AlphaEngine:
         
         df_copy['Future_Return'] = df_copy['Close'].pct_change(self.config.alpha_target_lookahead).shift(-self.config.alpha_target_lookahead)
         
-        df_copy['Target'] = 0
-        df_copy.loc[df_copy['Future_Return'] > self.config.alpha_return_threshold, 'Target'] = 1
-        df_copy.loc[df_copy['Future_Return'] < -self.config.alpha_return_threshold, 'Target'] = -1
+        # EXPERIMENT C: REGRESSION TARGET
+        # Predict Raw Return (scaled by 100 to make RMSE readable?)
+        # Let's keep it raw (e.g. 0.001)
+        df_copy['Target'] = df_copy['Future_Return']
         
         df_copy = df_copy.dropna(subset=self.feature_cols + ['Target'])
         
         X = df_copy[self.feature_cols]
-        y = df_copy['Target'] + 1
+        y = df_copy['Target'] # Float target
         return X, y
 
     def train_model(self, data: Dict[str, pd.DataFrame]):
@@ -675,6 +707,14 @@ class AlphaEngine:
         dtrain = xgb.DMatrix(X_train, label=y_train)
         self.model = xgb.train(self.config.alpha_model_params, dtrain, num_boost_round=100)
         print(f"  Alpha Engine trained on {len(self.trained_symbols)} symbols.")
+        
+        # EXPERIMENT DIAGNOSTICS: Feature Importance
+        importance = self.model.get_score(importance_type='gain')
+        print("\n  [FEATURE IMPORTANCE (Gain)]")
+        sorted_imp = sorted(importance.items(), key=lambda x: x[1], reverse=True)
+        for feat, score in sorted_imp[:10]:
+            print(f"    {feat}: {score:.4f}")
+        print("-" * 30)
 
     def generate_signals_with_probs(self, df: pd.DataFrame) -> Tuple[pd.Series, pd.DataFrame]:
         if self.model is None:
@@ -685,25 +725,22 @@ class AlphaEngine:
         X = df[self.feature_cols]
         dtest = xgb.DMatrix(X)
         
-        probs = self.model.predict(dtest)
+        # EXPERIMENT C: REGRESSION PREDICTION
+        # Returns raw float values
+        preds = self.model.predict(dtest)
         
-        # probs is [n_samples, 3] (Down, Neutral, Up)
-        prob_df = pd.DataFrame(probs, columns=['prob_down', 'prob_neural', 'prob_up'], index=df.index)
+        prob_df = pd.DataFrame(index=df.index)
+        prob_df['pred_return'] = preds
         
-        # C. ML Signal-Quality Meta-Features
-        # 11. Probability Margin (Max - Neutral) (Confidence in Direction)
-        prob_df['prob_max'] = prob_df[['prob_up', 'prob_down']].max(axis=1)
-        prob_df['prob_margin'] = prob_df['prob_max'] - prob_df['prob_neural']
-        
-        # 12. Prediction Entropy (Uncertainty)
-        # H = -sum(p * log(p))
-        eps = 1e-12
-        p = prob_df[['prob_down', 'prob_neural', 'prob_up']].clip(eps, 1.0)
-        prob_df['prob_entropy'] = - (p * np.log(p)).sum(axis=1)
+        # Legacy columns fill (to avoid crashes downstream)
+        prob_df['prob_up'] = preds # Map pred return to 'score'
+        prob_df['prob_down'] = -preds
+        prob_df['prob_neural'] = 0.0
         
         signal = pd.Series(0, index=df.index)
-        signal[prob_df['prob_up'] > self.config.ml_prob_threshold_long] = 1
-        signal[prob_df['prob_down'] > self.config.ml_prob_threshold_short] = -1
+        # Threshold concept doesn't apply directly, but we can say:
+        signal[preds > 0.001] = 1
+        signal[preds < -0.001] = -1
         
         return signal, prob_df
 
@@ -785,9 +822,19 @@ class AlphaEngine:
                 probs = model.predict(dtest_xgb)
                 
                 # Create mini-dataframe for this OOS chunk
-                # probs is [n_samples, 3]
-                cols = ['prob_down', 'prob_neural', 'prob_up']
-                chunk_df = pd.DataFrame(probs, columns=cols, index=df_test.index)
+                # EXPERIMENT C: REGRESSION OUTPUT HANDLING
+                if self.config.alpha_model_params['objective'] == 'reg:squarederror':
+                     # Output is 1D array of predicted returns
+                     chunk_df = pd.DataFrame(index=df_test.index)
+                     chunk_df['pred_return'] = probs
+                     # Map to prob_up so downstream rank logic works if needed
+                     chunk_df['prob_up'] = probs 
+                     chunk_df['prob_down'] = -probs
+                     chunk_df['prob_neural'] = 0.0
+                else:
+                     # Classification (3 classes)
+                     cols = ['prob_down', 'prob_neural', 'prob_up']
+                     chunk_df = pd.DataFrame(probs, columns=cols, index=df_test.index)
                 
                 oos_predictions[sym].append(chunk_df)
 
@@ -837,47 +884,40 @@ class AlphaEngine:
         """
         print(f"\n[RANK SIGNAL] Generating Top {self.config.rank_top_n} / Bottom {self.config.rank_top_n} Signals...")
         
-        # 1. Pivot probs to [Timestamp x Symbol] matrix
-        # Be careful with mismatched indices. We rely on time alignment.
-        all_probs_up = {}
-        all_probs_down = {}
-        
+        # EXPERIMENT C: RANK BY PREDICTED RETURN
+        # 1. Pivot Predicted Returns
+        all_preds = {}
         for sym, df in data.items():
-            if 'prob_up' in df.columns:
-                all_probs_up[sym] = df['prob_up']
-                all_probs_down[sym] = df['prob_down']
+            if 'pred_return' in df.columns:
+                all_preds[sym] = df['pred_return']
+            elif 'prob_up' in df.columns: # Fallback if stitched from OOS
+                all_preds[sym] = df['prob_up'] # In Exp C, prob_up holds pred_return
                 
-        df_up = pd.DataFrame(all_probs_up)
-        # df_down = pd.DataFrame(all_probs_down) # Not strictly needed if we rank by Prob_Up
+        df_preds = pd.DataFrame(all_preds)
+        print(f"    [DEBUG] df_preds shape: {df_preds.shape}")
+        if not df_preds.empty:
+             print(f"    [DEBUG] Sample Preds:\n{df_preds.iloc[-5:, :3]}")
         
-        # 2. Compute Ranks (Descending: High Prob Up = Rank 1)
-        # method='min': ties get same rank
-        ranks = df_up.rank(axis=1, ascending=False, method='min')
+        # 2. Rank Top N (Highest Positive Return)
+        ranks_long = df_preds.rank(axis=1, ascending=False) # 1 = Highest Return
         
-        # 3. Compute Reverse Ranks (Ascending: Low Prob Up = Rank 1 = High Prob Down?)
-        # Actually, let's use Prob_Down for shorts to be precise, or just flip Prob_Up?
-        # Let's use Prob_Down for Short Ranking to be precise.
-        df_down = pd.DataFrame(all_probs_down)
-        ranks_down = df_down.rank(axis=1, ascending=False, method='min') # Rank 1 = Highest Prob Down
+        # 3. Rank Bottom N (Lowest Negative Return)
+        ranks_short = df_preds.rank(axis=1, ascending=True) # 1 = Lowest Return (Most Negative)
         
         # 4. Generate Signals
         for sym, df in data.items():
-            if sym not in ranks.columns:
-                continue
+            if sym not in df_preds.columns: continue
                 
             signal = pd.Series(0, index=df.index)
-            
-            # Long Top N (Highest Prob Up)
-            signal[ranks[sym] <= self.config.rank_top_n] = 1
-            
-            # Short Top N (Highest Prob Down)
-            # Ensure no conflict (rare)
-            signal[ranks_down[sym] <= self.config.rank_top_n] = -1
+            signal[ranks_long[sym] <= self.config.rank_top_n] = 1
+            signal[ranks_short[sym] <= self.config.rank_top_n] = -1
             
             df['S_Alpha'] = signal
             data[sym] = df
             
         return data
+            
+
 
     def add_signals_all(self, data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
         if not self.config.use_alpha_engine:

@@ -682,8 +682,16 @@ class LiveTrader:
 
             elif open_pos:
                 current_dir = 1 if open_pos['type'] =='BUY' else -1
+                
+                # REVERSAL (Long -> Short or Short -> Long)
                 if target_direction != 0 and target_direction != current_dir:
                     print(f"\n>>> [REVERSE] {mt5_sym}")
+                    self.mt5.close_position(open_pos['ticket'])
+                    
+                # EXIT (Strong -> Neutral)
+                # Strict Rotation: If active signal is lost (dropped out of Top N), Close.
+                elif target_direction == 0:
+                    print(f"\n>>> [EXIT] {mt5_sym} (Dropped from Rank)")
                     self.mt5.close_position(open_pos['ticket'])
 
     def loop(self):

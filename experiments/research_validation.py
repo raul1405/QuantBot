@@ -9,7 +9,7 @@ Metrics are reported ONLY on the Out-of-Sample (Test) period.
 import sys
 sys.path.insert(0, '/Users/raulschalkhammer/Desktop/Costum Portfolio Backtest/FTMO Challenge')
 
-from quant_backtest import (
+from experiments.research_sandbox import (
     Config, DataLoader, FeatureEngine, AlphaEngine, 
     RegimeEngine, EnsembleSignal, CrisisAlphaEngine, Backtester
 )

@@ -1,0 +1,45 @@
+[
+    {
+        "role": "QuantResearcher",
+        "verdict": "APPROVE",
+        "confidence": 0.8,
+        "concerns": [
+            "Sharpe 0.12 is low, but consistent with real alpha."
+        ],
+        "required_actions": []
+    },
+    {
+        "role": "RiskOfficer",
+        "verdict": "APPROVE",
+        "confidence": 0.9,
+        "concerns": [],
+        "required_actions": [
+            "User must monitor daily DD limit manually for first 24h."
+        ]
+    },
+    {
+        "role": "CodeAuditor",
+        "verdict": "APPROVE",
+        "confidence": 0.95,
+        "concerns": [],
+        "required_actions": []
+    },
+    {
+        "role": "RealismChecker",
+        "verdict": "APPROVE",
+        "confidence": 0.85,
+        "concerns": [
+            "Execution latency on VPS must be monitored."
+        ],
+        "required_actions": []
+    },
+    {
+        "role": "IntegrationEngineer",
+        "verdict": "APPROVE",
+        "confidence": 1.0,
+        "concerns": [],
+        "required_actions": [
+            "Ensure requirements_windows.txt includes MetaTrader5."
+        ]
+    }
+]

@@ -1,0 +1,24 @@
+{
+    "request_id": "req_ml_fix_001",
+    "final_outcome": "APPROVE",
+    "axis_scores": {
+        "assumptions": 9.0,
+        "applicability": 10.0,
+        "code_correctness": 8.0,
+        "realistic_newness": 10.0,
+        "overfitting": 10.0,
+        "implications": 7.0
+    },
+    "summary_reasoning": "The Council UNANIMOUSLY APPROVES this critical infrastructure fix. The previous backtest engine was fundamentally flawed (Data Leakage). Moving to Walk-Forward Optimization (WFO) is the only path to scientific validity. Expect performance metrics to drop to zero initially; this is a feature, not a bug.",
+    "role_verdicts": {
+        "QuantResearcher": "APPROVE. WFO is the gold standard. Ensure training window > 1 year.",
+        "RiskOfficer": "APPROVE. Better to know we are losing 0% than to believe we make 40% and blow up.",
+        "CodeAuditor": "APPROVE. Ensure clear separation of indices.",
+        "RealismChecker": "APPROVE. Welcome to the real world.",
+        "IntegrationEngineer": "APPROVE. Note: Scoreboard will need a reset."
+    },
+    "next_steps": [
+        "Refactor quant_backtest.py for WFO.",
+        "Run comprehensive_validation.py to confirm 100% OOS purity."
+    ]
+}
