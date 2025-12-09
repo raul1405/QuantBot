@@ -138,7 +138,8 @@ class MT5Connector:
                 'profit': p.profit,
                 'sl': p.sl,
                 'tp': p.tp,
-                'open_price': p.price_open
+                'open_price': p.price_open,
+                'current_price': p.price_current
             })
         return pos_list
 
@@ -769,7 +770,30 @@ class LiveTrader:
                 f"{res['sym']:<8} {price_str:>9} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {res['p_nt']:>4.2f} {action:>4} "
                 f"{res['regime']:>4} {res['vol']:>+4.1f} {d_str:>5} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
-        
+            
+        # === OPEN POSITIONS SECTION ===
+        lines.append("")
+        lines.append("=== OPEN POSITIONS ===")
+        if current_positions:
+            lines.append(f"{'TICKET':<10} {'SYM':<8} {'TYPE':<4} {'SIZE':>5} {'ENTRY':>9} {'CURR':>9} {'PNL':>9}")
+            lines.append("-" * 65)
+            for p in current_positions:
+                ticket = str(p['ticket'])
+                sym = p['symbol']
+                p_type = p['type'] # Already 'BUY'/'SELL'
+                size = f"{p['volume']:.2f}"
+                entry = f"{p['open_price']:.4f}"
+                curr = f"{p.get('current_price', 0.0):.4f}"
+                profit = f"{p['profit']:+.2f}"
+                
+                # Smart Formatting for Indices/Yen
+                if float(p.get('open_price', 0)) > 500:
+                   entry = f"{p['open_price']:.1f}"
+                   curr = f"{p.get('current_price', 0.0):.1f}"
+                
+                lines.append(f"{ticket:<10} {sym:<8} {p_type:<4} {size:>5} {entry:>9} {curr:>9} {profit:>9}")
+        else:
+            lines.append(" [No Open Positions]")
         # === DISPLAY (simple clear + print) ===
         os.system('cls')
         print("\n".join(lines))
