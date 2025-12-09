@@ -46,20 +46,20 @@ SYMBOL_MAP = {
     "CADJPY=X": "CADJPY", "NZDJPY=X": "NZDJPY", "GBPCHF=X": "GBPCHF", "GBPAUD=X": "GBPAUD",
     "GBPCAD=X": "GBPCAD", "EURNZD=X": "EURNZD",
     
-    # --- INDICES (CFDs) ---
-    "ES=F": "US500",      # S&P 500 (Confirmed)
-    "NQ=F": None,         # Nasdaq 100 (Temporarily Disabled - causing lag)
-    "YM=F": "US30",       # Dow Jones (Confirmed)
-    "RTY=F": None,        # Russell 2000 (Not Found)
+    # --- INDICES (CFDs) - DISABLED (FX ONLY STRATEGY) ---
+    "ES=F": None,      # "US500",
+    "NQ=F": None,      # Nasdaq 100
+    "YM=F": None,      # "US30",
+    "RTY=F": None,     # Russell 2000
     
-    # --- COMMODITIES ---
-    "GC=F": "XAUUSD",     # Gold (Confirmed)
-    "CL=F": None,         # Crude Oil (Not Found)
-    "NG=F": None,         # Natural Gas (Not Found)
+    # --- COMMODITIES - DISABLED ---
+    "GC=F": None,      # "XAUUSD",
+    "CL=F": None,      # Crude Oil
+    "NG=F": None,      # Natural Gas
     
-    # --- CRYPTO ---
-    "BTC-USD": None,      # (Not Found)
-    "ETH-USD": None,      # (Not Found)
+    # --- CRYPTO - DISABLED ---
+    "BTC-USD": None,
+    "ETH-USD": None,
 }
 # Reverse map for internal logic
 REVERSE_MAP = {v: k for k, v in SYMBOL_MAP.items()}
@@ -804,6 +804,11 @@ class LiveTrader:
                 # Rounding
                 step = symbol_info.volume_step
                 volume = round(volume / step) * step
+                
+                # CRITICAL FIX: Do not force trade if volume is effectively zero
+                if volume < symbol_info.volume_min:
+                    continue
+                    
                 volume = max(volume, symbol_info.volume_min)
                 volume = min(volume, symbol_info.volume_max)
                 
