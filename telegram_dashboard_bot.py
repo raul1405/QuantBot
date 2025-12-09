@@ -312,7 +312,7 @@ async def cmd_stop(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def live_refresh_loop(bot: Bot, chat_id: int):
     """Refresh dashboard every 15 seconds by editing the message."""
     while chat_id in live_sessions and live_sessions[chat_id]['active']:
-        await asyncio.sleep(15)
+        await asyncio.sleep(3)
         
         if not live_sessions.get(chat_id, {}).get('active'):
             break
