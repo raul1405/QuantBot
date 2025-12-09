@@ -110,6 +110,8 @@ def main():
     
     crypto = ["BTC-USD", "ETH-USD"]
     
+    top_stocks = ["NVDA", "AAPL", "MSFT", "TSLA", "AMD"]
+    
     # Date range (use available 730-day window)
     start_date = "2024-01-01"
     end_date = "2024-12-01"
@@ -123,6 +125,7 @@ def main():
         (indices, "Equity Indices"),
         (commodities, "Commodities"),
         (crypto, "Crypto"),
+        (top_stocks, "Top Stocks"),
     ]:
         result = run_asset_class_test(symbols, name, start_date, end_date)
         if result:

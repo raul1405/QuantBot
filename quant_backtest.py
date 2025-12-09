@@ -1252,9 +1252,34 @@ class Position:
     sl: float
     tp: float
     entry_signal_score: float
-    # Chandelier fields REMOVED
-    # Context Data for Analysis
-    entry_context: Dict = field(default_factory=dict)
+    entry_context: dict # To store Regime, Signal Score, etc.
+
+    # Validation Fields
+    mae: float = 0.0 # Max Adverse Excursion (Price Dist)
+    mfe: float = 0.0 # Max Favorable Excursion (Price Dist)
+    highest_price: float = 0.0
+    lowest_price: float = float('inf')
+    
+    def __post_init__(self):
+        if self.highest_price == 0.0: self.highest_price = self.entry_price
+        if self.lowest_price == float('inf'): self.lowest_price = self.entry_price
+
+    def update_extremes(self, high, low):
+        # Update Price Extremes
+        if high > self.highest_price: self.highest_price = high
+        if low < self.lowest_price: self.lowest_price = low
+        
+        # Calculate MAE/MFE based on direction
+        if self.direction == 1: # LONG
+            # MAE = Entry - Lowest Low (Positive value of loss distance)
+            self.mae = max(self.mae, self.entry_price - self.lowest_price)
+            # MFE = Highest High - Entry
+            self.mfe = max(self.mfe, self.highest_price - self.entry_price)
+        else: # SHORT
+            # MAE = Highest High - Entry
+            self.mae = max(self.mae, self.highest_price - self.entry_price)
+            # MFE = Entry - Lowest Low
+            self.mfe = max(self.mfe, self.entry_price - self.lowest_price)
 
 class Account:
     def __init__(self, config: Config):
@@ -1333,17 +1358,42 @@ class Account:
             spread_pct = 0.001  # 0.1% spread
             cost = notional * spread_pct * 2  # Round-trip
             
-        elif pos.symbol in ['ES=F', 'NQ=F', 'YM=F', 'RTY=F']:  # Index Futures
-            # pos.size here should be # of contracts * point_value movement
-            # For backtesting simplicity, we use fixed costs per position
-            # ES: tick=$12.50 (0.25 pts), NQ: tick=$5 (0.25 pts)
-            # Typical cost: $5 commission + 1 tick slippage per side
-            contracts = max(1, abs(pos.size / 100))  # Rough contract estimate
-            tick_values = {'ES=F': 12.50, 'NQ=F': 5.0, 'YM=F': 5.0, 'RTY=F': 5.0}
-            tick_val = tick_values.get(pos.symbol, 10.0)
-            commission_per_side = 2.50
-            slippage_ticks = 1.0
-            cost = contracts * (commission_per_side * 2 + slippage_ticks * tick_val * 2)
+        elif pos.symbol in ['ES=F', 'NQ=F', 'YM=F', 'RTY=F']:  # Index CFDs
+            # Modeled as CFDs for Prop Firms (Spread based, no commission)
+            # Spreads: US500 ~0.4, US100 ~1.5, US30 ~2.5, US2000 ~0.6
+            spread_map = {
+                'ES=F': 0.50,  # S&P 500
+                'NQ=F': 1.60,  # Nasdaq 100
+                'YM=F': 2.80,  # Dow 30
+                'RTY=F': 0.70  # Russell 2000
+            }
+            spread_pts = spread_map.get(pos.symbol, 1.0)
+            
+            # Point Value assumption: 
+            # If pos.size is Contracts (Unit Size), we multiply by Point Value multiplier?
+            # Or is pos.size Dollar Value? Or Shares?
+            # In sim, pos.size = Risk amount / Stop distance.
+            # Usually 'Contracts'.
+            # Futures Multipliers: ES=50, NQ=20, YM=5, RTY=50.
+            # CFD Multipliers often 1, 10, or 20. 
+            # Let's assume Standard Futures Multipliers as worst case?
+            # Actually, standard CFD is often 1:1 or 1:10.
+            # But earlier code used tick_values implies Multipliers.
+            # Let's stick to 'tick_values' for PnL calculation implication.
+            # If PnL uses multipliers, Cost must too.
+            # Assuming Backtester PnL calculation accounts for multipliers somewhere?
+            # Backtester `close_position` line 1317: (exit - entry) * pos.size * direction.
+            # Wait. If pos.size is "Contracts" AND "Multiplier" is missing here, then PnL is raw points * contracts.
+            # For NQ to lose -16%, it must match price.
+            # If Price 18000. 1% move = 180 pts.
+            # If Size 1. PnL = 180.
+            # Real NQ Future: 180 pts * $20 = $3600.
+            # If we trade "1 Contract" in this code, we get $180.
+            # So we are trading "Mini-CFDs" (1:1).
+            # Cost should be: Contracts * Spread * 1.0.
+            
+            contracts = abs(pos.size)
+            cost = contracts * spread_pts * 1.0 # 1:1 Multiplier Assumption
             
         elif pos.symbol in ['GC=F', 'CL=F', 'NG=F']:  # Commodity Futures
             # Gold: tick=$10 (0.10 pts), Oil: tick=$10 (0.01 pts), Gas: tick=$10
@@ -1409,6 +1459,8 @@ class Account:
             'Risk_Dollars': entry_risk_dollars,
             'R_Multiple': r_multiple,
             'Streak_Len_Exit': self.current_streak_len * self.current_streak_sign, # +/- Length
+            'MAE': pos.mae,
+            'MFE': pos.mfe,
             
             # Unpack Context
             **pos.entry_context
@@ -1633,7 +1685,14 @@ class Backtester:
                     row = df.loc[current_time]
                     score = row.get('Final_Signal', row.get('Ensemble_Score', 0))
                     close = row['Close']
+                    high = row.get('High', close)
+                    low = row.get('Low', close)
                     atr = row['ATR']
+                    
+                    # Update MFE/MAE for active positions
+                    for pos in self.account.positions:
+                        if pos.symbol == sym:
+                            pos.update_extremes(high, low)
                     
                     direction = 0
                     if score > self.config.ensemble_threshold: direction = 1

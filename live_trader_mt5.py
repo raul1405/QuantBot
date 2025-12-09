@@ -39,8 +39,14 @@ MT5_SERVER = "FTMO-Demo"
 # ADJUST THESE KEYS TO MATCH YOUR BROKER EXACTLY (e.g. "EURUSD.pro", "US500.cash")
 SYMBOL_MAP = {
     # --- FOREX ---
-    "EURUSD=X": "EURUSD", "USDJPY=X": "USDJPY", "GBPUSD=X": "GBPUSD", "USDCHF=X": "USDCHF",
-    "USDCAD=X": "USDCAD", "AUDUSD=X": "AUDUSD", "NZDUSD=X": "NZDUSD",
+    # "EURUSD": "EURUSD=X", # REMOVED (Lagging Performance)
+    "EURUSD=X": "EURUSD",
+    "USDJPY=X": "USDJPY",
+    "GBPUSD=X": "GBPUSD",
+    "USDCHF=X": "USDCHF",
+    "USDCAD=X": "USDCAD",
+    "AUDUSD=X": "AUDUSD",
+    "NZDUSD=X": "NZDUSD",
     "EURGBP=X": "EURGBP", "EURJPY=X": "EURJPY", "GBPJPY=X": "GBPJPY", "AUDJPY=X": "AUDJPY",
     "EURAUD=X": "EURAUD", "EURCHF=X": "EURCHF", 
     
@@ -632,7 +638,7 @@ class LiveTrader:
         safe_fraction = kelly * 0.5
         if safe_fraction < 0: safe_fraction = 0.0
         
-        max_risk = self.config.risk_per_trade # 0.008
+        max_risk = 0.05 # 5.0% (Optimal Sweet Spot)
         used_risk = min(max_risk, safe_fraction)
         
         risk_amt = equity * used_risk
