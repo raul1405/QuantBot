@@ -16,3 +16,24 @@
 | B1-B | Remove ContinuousRegime | 0.2128 | 403 | TBD | TBD | **🚀 ALPHA UNLOCKED. Vol features confused the model.** |
 | 003-v1 | Baseline (H=3/T=0.001/All) | 0.0807 | 394 | TBD | TBD | **Baseline Re-Run. Fails High-Vol Test (-0.01 R).** |
 | 003-v2 | **Candidate v2.0 (H=5/T=0.0005/Lean)** | **0.0653** | **956** | TBD | TBD | **🏆 Winner. +60% Profit, Survives High Vol (+0.02 R).** |
+
+## Family B - CPI Framework (Sandbox)
+| ID | Description | Mean R | Trades | Max DD | Win Rate | Decision/Comment |
+|:---|:------------|:-------|:-------|:-------|:---------|:-----------------|
+| CPI_001 | Pure CPI Overlay (Gold) | $1,594 | 4 | 0% | 75% | **SUCCESS. Sniper Alpha ($6k Profit).** |
+| CPI_002 | Synergy (Combined) | -- | -- | -- | -- | **Correlation: -0.63. POWERFUL HEDGE.** |
+| CPI_003 | Rolling Correlation | -- | -- | -- | -- | **STABLE. 100% Negative across all windows.** |
+| CPI_004 | Portfolio Simulation | Sharpe 1.07 | -- | -5.63% | -- | **🏆 50/50 OPTIMAL. 70/30 gets Sharpe 0.83.** |
+| CPI_005 | Monte Carlo (10k sims) | $107k | -- | -7.81% | -- | **✅ ROBUST. Worst-case DD -8.56%.** |
+
+## Research Conclusion
+**⚠️ CRITICAL FINDING (EXP006)**: With expanded data (41 trades vs 4), correlation is **+0.01** (not -0.63!).
+The original negative correlation was **statistical noise** from n=4 sample.
+
+| Metric | Old (n=4) | New (n=41) |
+|--------|-----------|------------|
+| Correlation | -0.63 | **+0.01** |
+| Best Allocation | 50/50 | **30/70** |
+| Statistical Power | ❌ None | ✅ Valid |
+
+**Recommendation**: Family B is **uncorrelated** (neutral), NOT a hedge. Deploy only if B has standalone alpha.

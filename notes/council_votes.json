@@ -2,44 +2,45 @@
     {
         "role": "QuantResearcher",
         "verdict": "APPROVE",
-        "confidence": 0.8,
+        "confidence": 0.85,
         "concerns": [
-            "Sharpe 0.12 is low, but consistent with real alpha."
+            "Stationarity of pairs in FX is often temporary."
         ],
-        "required_actions": []
+        "required_actions": [
+            "Use strict Cointegration Tests (ADF/Johansen)."
+        ]
+    },
+    {
+        "role": "RealismChecker",
+        "verdict": "CAUTION",
+        "confidence": 0.7,
+        "concerns": [
+            "Double Spread Costs. Can we beat 2x Spread + Comm?"
+        ],
+        "required_actions": [
+            "Filter: Opportunity > 4x Cost."
+        ]
     },
     {
         "role": "RiskOfficer",
         "verdict": "APPROVE",
-        "confidence": 0.9,
-        "concerns": [],
+        "confidence": 0.8,
+        "concerns": [
+            "Divergence Risk (Widowmaker)."
+        ],
         "required_actions": [
-            "User must monitor daily DD limit manually for first 24h."
+            "Hard Stop on Z-Score > 4.0?"
         ]
     },
     {
-        "role": "CodeAuditor",
-        "verdict": "APPROVE",
-        "confidence": 0.95,
-        "concerns": [],
-        "required_actions": []
-    },
-    {
-        "role": "RealismChecker",
-        "verdict": "APPROVE",
-        "confidence": 0.85,
+        "role": "OverfittingGuard",
+        "verdict": "CAUTION",
+        "confidence": 0.6,
         "concerns": [
-            "Execution latency on VPS must be monitored."
+            "Data Snooping on Pairs Selection."
         ],
-        "required_actions": []
-    },
-    {
-        "role": "IntegrationEngineer",
-        "verdict": "APPROVE",
-        "confidence": 1.0,
-        "concerns": [],
         "required_actions": [
-            "Ensure requirements_windows.txt includes MetaTrader5."
+            "Select pairs In-Sample, Test Out-Of-Sample."
         ]
     }
 ]

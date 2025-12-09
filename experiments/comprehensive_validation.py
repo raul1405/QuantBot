@@ -42,7 +42,14 @@ def compute_all_metrics(equity_curve: pd.Series, trades: list, rf_rate: float = 
     # Basic returns
     returns = equity_curve.pct_change().dropna()
     N = len(returns)
-    K = 252 * 7  # Hourly bars per year (approx)
+    
+    # === DYNAMIC K CALCULATION ===
+    # Compute actual bars per day from the data
+    total_days = (equity_curve.index[-1] - equity_curve.index[0]).days
+    if total_days < 1: 
+        total_days = 1
+    actual_bars_per_day = len(equity_curve) / total_days
+    K = actual_bars_per_day * 252  # Annualize based on actual frequency
     
     # 1. CAGR
     total_days = (equity_curve.index[-1] - equity_curve.index[0]).days

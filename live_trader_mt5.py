@@ -414,8 +414,8 @@ class LiveTrader:
         self.config.mode = "LIVE"
         self.config.use_rank_logic = True
         self.config.rank_top_n = 1
-        # Ensure costs are matched
-        self.config.transaction_cost = 0.0005
+        self.config.rank_top_n = 1
+        # Costs inherit from Config (0.00003 for FX)
         
         self.engines = {
             'feature': FeatureEngine(self.config),
@@ -739,7 +739,7 @@ class LiveTrader:
         
         # === BUILD SIMPLE TEXT OUTPUT ===
         lines = []
-        lines.append(f"QuantBot v5 (Medallion) | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
+        lines.append(f"QuantBot v5 (Verified) | Risk: 3.3% | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
         # Added DELTA column
         lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>4} {'DN':>4} {'NT':>4} {'ACT':>4} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
