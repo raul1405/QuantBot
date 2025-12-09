@@ -35,4 +35,20 @@ We tested "King of the Hill" (Rank 1) vs "Diversified" (Top 3) with normalized r
 **Conclusion**: Stick to **Rank 1** (Concentrated). This alpha engine is a "Sniper". Diversifying into Rank 2/3 dilutes edge and increases drawdown.
 
 ## 6. Council Guidelines
-> Interpret all statistics as fragile estimates. 23.5% pass rate means ~1 in 4 attempts succeed, implying multiple months/retries may be needed. The strategy "improves odds", it does not "print money".
+## 7. Optimal Risk Audit (Exp_RISK)
+We swept risk from 1% to 6% to find the FTMO sweet spot.
+
+| Risk | Return | Pass % | Tail DD (95%) |
+| :--- | :--- | :--- | :--- |
+| 1.0% | +2.7% | 0.0% | -2.76% |
+| 2.0% | +7.2% | 23.4% | -3.88% |
+| 3.0% | +12.1% | 64.7% | -4.63% |
+| **5.0%** | **+17.4%** | **83.1%** | **-6.29%** |
+| 6.0% | +20.7% | 90.8% | -6.17% |
+
+**Key Insight**: **Leverage Saturation**.
+At 5-6% risk, the "Soft Cap" (`Total Notional < 6x Equity`) acts as a dynamic circuit breaker. It prevents Drawdown from scaling linearly with Risk.
+- *Naive Projection*: 2% -> 5% implies DD -3.9% -> -9.7% (Danger Zone).
+- *Actual Reality*: 5% Risk had Tail DD of only -6.3% because the cap blocked marginal trades during high exposure.
+
+**Decision**: Run at **5.0% Risk** for Live Trading.
