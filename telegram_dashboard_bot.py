@@ -293,9 +293,13 @@ def main():
     app.add_handler(CommandHandler("positions", cmd_positions))
     app.add_handler(CommandHandler("pnl", cmd_pnl))
     
-    # Schedule Hourly Broadcast
+    # Schedule Hourly Broadcast (Optional - requires job-queue extra)
     job_queue = app.job_queue
-    job_queue.run_repeating(scheduled_broadcast, interval=3600, first=60)  # Every hour
+    if job_queue:
+        job_queue.run_repeating(scheduled_broadcast, interval=3600, first=60)  # Every hour
+        print("[BOT] Hourly broadcasts enabled.")
+    else:
+        print("[BOT] JobQueue not available. Use /status command manually.")
     
     print("[BOT] Bot is running. Press Ctrl+C to stop.")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
