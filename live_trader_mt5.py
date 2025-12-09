@@ -100,6 +100,9 @@ class MT5Connector:
 
     def symbol_select(self, symbol, enable):
         return mt5.symbol_select(symbol, enable)
+        
+    def copy_ticks_from(self, symbol, date_from, count, flags):
+        return mt5.copy_ticks_from(symbol, date_from, count, flags)
 
     def get_data(self, symbol_mt5, n_bars=2000):
         # Ensure symbol is selected in Market Watch
@@ -325,6 +328,54 @@ class TradeLogger:
         self.save_state()
 
 
+class TickEngine:
+    """
+    Alpha v5: Microstructure Analysis (Online Only)
+    Calculates Order Flow Delta from Tick Data.
+    """
+    def __init__(self, connector):
+        self.mt5 = connector
+        
+    def get_tick_alpha(self, symbol, lookback_minutes=60):
+        # Fetch last 1 hour of ticks
+        utc_from = datetime.now(timezone.utc) - timedelta(minutes=lookback_minutes)
+        # 1 hour ~ 5000-10000 ticks usually. Request 50k to be safe.
+        ticks = self.mt5.copy_ticks_from(symbol, utc_from, 50000, mt5.COPY_TICKS_ALL)
+        
+        if ticks is None or len(ticks) == 0:
+            return 0.0
+            
+        df = pd.DataFrame(ticks)
+        
+        # Tick Rule: Price Change determines direction
+        # If Price > PrevPrice -> Buy (+1)
+        # If Price < PrevPrice -> Sell (-1)
+        # If Price == PrevPrice -> 0 (Neutral)
+        
+        price_col = 'last' if df['last'].sum() > 0 else 'bid'
+        df['diff'] = df[price_col].diff().fillna(0.0)
+        df['dir'] = np.sign(df['diff'])
+        
+        # Calculate Volume Delta
+        # If volume is 0 (some feeds), use Count Delta
+        vol_sum = df['volume'].sum()
+        
+        if vol_sum > 0:
+            df['signed_vol'] = df['dir'] * df['volume']
+            delta = df['signed_vol'].sum()
+            # Normalize by total volume? Or raw delta?
+            # Raw delta is volume dependent. We want intensity.
+            # Let's return the "Delta Ratio": Delta / TotalVolume (-1 to +1)
+            delta_ratio = delta / (vol_sum + 1e-9)
+        else:
+            # Count Delta
+            up_ticks = (df['dir'] > 0).sum()
+            down_ticks = (df['dir'] < 0).sum()
+            total_ticks = len(df)
+            delta_ratio = (up_ticks - down_ticks) / (total_ticks + 1e-9)
+            
+        return delta_ratio
+
 class LiveTrader:
     def __init__(self, connector):
         self.mt5 = connector
@@ -352,7 +403,8 @@ class LiveTrader:
             'regime': RegimeEngine(self.config),
             'alpha': AlphaEngine(self.config), 
             'ensemble': EnsembleSignal(self.config),
-            'crisis': CrisisAlphaEngine(self.config)
+            'crisis': CrisisAlphaEngine(self.config),
+            'tick': TickEngine(self.mt5)
         }
 
     # ... (load_governance, etc.) ...
@@ -583,23 +635,33 @@ class LiveTrader:
             signal = last_bar.get('S_Alpha', 0)
             p_up = last_bar.get('prob_up', 0.0)
             p_down = last_bar.get('prob_down', 0.0)
-            prob = p_up if signal == 1 else (p_down if signal == -1 else max(p_up, p_down))
+            
+            # --- ALPHA v5 (Tick Overlay) ---
+            mt5_sym = SYMBOL_MAP[sym_int]
+            tick_delta = 0.0
+            try:
+                # Fetch only last 60 mins to be fast (Hacker Optimization)
+                tick_delta = self.engines['tick'].get_tick_alpha(mt5_sym, lookback_minutes=60)
+            except Exception as e:
+                # print(f"Tick error {mt5_sym}: {e}")
+                pass
+                
+            # Hybrid Score: ML Prob + (Delta * 0.2)
+            # If Delta is +0.5 (Strong Buying), Prob gets +0.1 boost.
+            # If Delta is -0.5 (Strong Selling), Prob gets -0.1 penalty (if Long).
+            
+            # Just store it for now, let human decide or simple rank.
             
             regime = str(last_bar.get('Trend_Regime', '?'))[:4]  # Shorten
             vol_int = float(last_bar.get('Vol_Intensity', 0.0))
             
-            # ATR% = ATR / Close (volatility as % of price)
+            # ATR%
             atr = last_bar.get('ATR', 0)
             close = last_bar.get('Close', 1)
             atr_pct = (atr / close) * 100 if close else 0
             
             # 24h Change %
             chg_24h = ((close - prev_bar['Close']) / prev_bar['Close']) * 100 if prev_bar['Close'] else 0
-            
-            # Spread (from MT5 tick)
-            mt5_sym = SYMBOL_MAP[sym_int]
-            tick = mt5.symbol_info_tick(mt5_sym)
-            spread_pts = (tick.ask - tick.bid) * 10000 if tick else 0  # Approx pips for FX
             
             # Position Status
             pos_status = ""
@@ -617,19 +679,21 @@ class LiveTrader:
                 'regime': regime,
                 'vol': vol_int,
                 'chg': chg_24h,
+                'delta': tick_delta, # New Metric
                 'pos': pos_status,
                 'sym_int': sym_int
             })
             
-        # Sort by max probability
+        # Sort by max probability (Original v3 Logic)
         scan_results.sort(key=lambda x: max(x['p_up'], x['p_dn']), reverse=True)
         
         # === BUILD SIMPLE TEXT OUTPUT ===
         lines = []
-        lines.append(f"QuantBot | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
+        lines.append(f"QuantBot v5 (Medallion) | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
-        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>5} {'DN':>5} {'NT':>5} {'ACT':>5} {'TRND':>5} {'VOL':>5} {'24h':>6} {'POS':>3}")
-        lines.append("-" * 70)
+        # Added DELTA column
+        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>4} {'DN':>4} {'NT':>4} {'ACT':>4} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
+        lines.append("-" * 75)
         
         for res in scan_results:
             price = res['price']
@@ -641,9 +705,13 @@ class LiveTrader:
                 price_str = f"{price:.4f}"
             pos_display = res['pos'] if res['pos'] else ""
             action = "BUY" if res['sig'] == 1 else ("SELL" if res['sig'] == -1 else "-")
+            
+            # Colorize Delta? (Terminals might not support it well, keep simple)
+            d_str = f"{res['delta']:+.2f}"
+            
             lines.append(
-                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>5.2f} {res['p_dn']:>5.2f} {res['p_nt']:>5.2f} {action:>5} "
-                f"{res['regime']:>5} {res['vol']:>+5.1f} {res['chg']:>+5.1f}% {pos_display:>3}"
+                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {res['p_nt']:>4.2f} {action:>4} "
+                f"{res['regime']:>4} {res['vol']:>+4.1f} {d_str:>5} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
         
         # === DISPLAY (simple clear + print) ===
