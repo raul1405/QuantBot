@@ -50,6 +50,10 @@ COUNCIL_ROLES = {
     "IntegrationEngineer": {
         "persona": "You are the DevOps Architect. You care about system stability, logging, dependencies, and backward compatibility.",
         "focus": ["Dependencies", "Config Schema", "Logging", "Deployment Manifest"]
+    },
+    "OverfittingGuard": {
+        "persona": "You are a specialized statistician focused solely on 'P-Hacking' and 'Look-Ahead Bias'. You trust NOTHING.",
+        "focus": ["Train/Test Leakage", "Parameter Tuning Abuse", "Selection Bias"]
     }
 }
 

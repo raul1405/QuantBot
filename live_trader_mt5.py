@@ -81,6 +81,9 @@ class MT5Connector:
         else:
             print("failed to connect at account #{}, error code: {}".format(login, mt5.last_error()))
             quit()
+            
+    def account_info(self):
+        return mt5.account_info()
 
     def get_data(self, symbol_mt5, n_bars=2000):
         # Ensure symbol is selected in Market Watch
