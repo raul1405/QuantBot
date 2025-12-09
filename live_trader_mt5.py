@@ -222,6 +222,16 @@ class TradeLogger:
         self.load_state()
         self._init_csv()
         
+    def send_telegram(self, message):
+        token = os.getenv("TELEGRAM_BOT_TOKEN")
+        chat_id = os.getenv("TELEGRAM_CHAT_ID")
+        if not token or not chat_id: return
+        try:
+            url = f"https://api.telegram.org/bot{token}/sendMessage"
+            requests.post(url, data={"chat_id": chat_id, "text": message}, timeout=5)
+        except Exception as e:
+            print(f"[WARN] Telegram failed: {e}")
+        
     def _init_csv(self):
         filename = "FT_001_shadow.csv" if self.mode == "shadow" else "FT_001_trades.csv"
         self.log_file = os.path.join(LOG_DIR, filename)
@@ -257,6 +267,11 @@ class TradeLogger:
     
     def on_entry(self, ticket, symbol, direction, size, price, context):
         print(f"[EXECUTION] Confirmed Trade #{ticket} ({symbol}) | Type: {direction} | Size: {size}")
+        
+        # Telegram Alert
+        msg = f"🚀 TARGET LOCKED: {symbol}\nType: {direction}\nSize: {size}\nPrice: {price}"
+        self.send_telegram(msg)
+        
         self.active_trades[ticket] = {
             'Symbol': symbol,
             'Direction': direction,
@@ -328,6 +343,11 @@ class TradeLogger:
             ])
             
         print(f"[LOG] Trade Closed #{ticket} | PnL: ${total_profit:.2f} | R: {r_mult:.2f}")
+        
+        # Telegram Alert
+        msg = f"💰 TARGET HIT: {ctx['Symbol']}\nPnL: ${total_profit:.2f}\nR-Mult: {r_mult:.2f}\nExit: {exit_price}"
+        self.send_telegram(msg)
+        
         del self.active_trades[ticket]
         self.save_state()
 
