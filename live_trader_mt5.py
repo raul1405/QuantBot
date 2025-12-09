@@ -740,6 +740,10 @@ class LiveTrader:
             close = last_bar.get('Close', 1)
             atr_pct = (atr / close) * 100 if close else 0
             
+            # Spread Check
+            info = self.mt5.symbol_info(mt5_sym)
+            spread_pts = info.spread if info else 0
+            
             # 24h Change %
             chg_24h = ((close - prev_bar['Close']) / prev_bar['Close']) * 100 if prev_bar['Close'] else 0
             
@@ -750,6 +754,7 @@ class LiveTrader:
                 pos_status = "L" if p['type'] == 'BUY' else "S"
             
             scan_results.append({
+                'spread': spread_pts,
                 'sym': mt5_sym,
                 'price': close,
                 'p_up': p_up,
@@ -771,8 +776,8 @@ class LiveTrader:
         lines = []
         lines.append(f"QuantBot v5 (Verified) | Risk: 3.3% | {datetime.now().strftime('%H:%M:%S')} | Eq: ${current_equity:,.0f} | PnL: {daily_dd_pct*100:+.2f}%")
         lines.append("")
-        # Added DELTA column
-        lines.append(f"{'SYM':<8} {'PRICE':>9} {'UP':>4} {'DN':>4} {'NT':>4} {'ACT':>4} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
+        # Added DELTA column, Swapped NT for SPD
+        lines.append(f"{'SYM':<8} {'PRICE':>9} {'SPD':>4} {'UP':>4} {'DN':>4} {'ACT':>4} {'TRND':>4} {'VOL':>4} {'DLTA':>5} {'24h':>5} {'POS':>3}")
         lines.append("-" * 75)
         
         for res in scan_results:
@@ -790,7 +795,7 @@ class LiveTrader:
             d_str = f"{res['delta']:+.2f}"
             
             lines.append(
-                f"{res['sym']:<8} {price_str:>9} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {res['p_nt']:>4.2f} {action:>4} "
+                f"{res['sym']:<8} {price_str:>9} {res['spread']:>4} {res['p_up']:>4.2f} {res['p_dn']:>4.2f} {action:>4} "
                 f"{res['regime']:>4} {res['vol']:>+4.1f} {d_str:>5} {res['chg']:>+5.1f}% {pos_display:>3}"
             )
             
