@@ -85,6 +85,22 @@ class MT5Connector:
     def account_info(self):
         return mt5.account_info()
 
+    def symbol_info_tick(self, symbol):
+        return mt5.symbol_info_tick(symbol)
+
+    def symbol_info(self, symbol):
+        return mt5.symbol_info(symbol)
+
+    def history_deals_get(self, position=None, ticket=None):
+        if position:
+            return mt5.history_deals_get(position=position)
+        if ticket:
+            return mt5.history_deals_get(ticket=ticket)
+        return None
+
+    def symbol_select(self, symbol, enable):
+        return mt5.symbol_select(symbol, enable)
+
     def get_data(self, symbol_mt5, n_bars=2000):
         # Ensure symbol is selected in Market Watch
         if not mt5.symbol_select(symbol_mt5, True):
