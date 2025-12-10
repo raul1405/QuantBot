@@ -112,15 +112,15 @@ $$\forall k \in [1, K]:$$
 
 **Training Set**:
 
-$$\mathcal{D}_{train}^{(k)} = \{ (X_t, y_t) \mid t \in [T_{start} + k\Delta, T_{cutoff} + k\Delta] \}$$
+$$\mathcal{D}_{train}^{(k)} = \lbrace (X_t, y_t) : t \in [T_{start} + k\Delta, T_{cutoff} + k\Delta] \rbrace$$
 
 **Test Set**:
 
-$$\mathcal{D}_{test}^{(k)} = \{ (X_t) \mid t \in (T_{cutoff} + k\Delta, T_{cutoff} + k\Delta + W_{test}] \}$$
+$$\mathcal{D}_{test}^{(k)} = \lbrace X_t : t \in (T_{cutoff} + k\Delta, T_{cutoff} + k\Delta + W_{test}] \rbrace$$
 
 **Inference**:
 
-$$\hat{y}_t = f(X_t; \theta^*_k) \quad \text{where} \quad \theta^*_k = \text{argmin}_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta)$$
+$$\hat{y}_t = f(X_t; \theta_k^{*}) \quad \text{where} \quad \theta_k^{*} = \arg\min_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta)$$
 
 This ensures that at any time $t$, the model parameters $\theta$ are derived *only* from information available at $t-1$.
 
@@ -327,7 +327,7 @@ The `/experiments` folder contains isolated research modules. Each experiment is
 | `min_prob_margin` | 0.05 | Minimum confidence margin (P(direction) - 0.5) for entry. |
 
 **Position Sizing Logic**:
-1. **Kelly Criterion**: $f^* = p - \frac{1-p}{b}$ where $p$ = win probability, $b$ = R-Multiple (target 1.5).
-2. **Half-Kelly**: Actual allocation = $0.5 \times f^*$ to reduce variance.
-3. **Risk Cap**: Final allocation = $\min(f^*_{half}, \text{risk\_per\_trade})$ to prevent over-exposure.
-4. **Dollar Risk**: Position size = $\frac{\text{Equity} \times \text{Risk\%}}{\text{Stop Distance}}$.
+1. **Kelly Criterion**: $f^{*} = p - \frac{1-p}{b}$ where $p$ = win probability, $b$ = R-Multiple (target 1.5).
+2. **Half-Kelly**: Actual allocation = $0.5 \times f^{*}$ to reduce variance.
+3. **Risk Cap**: Final allocation = $\min(f_{half}^{*}, R_{max})$ to prevent over-exposure.
+4. **Dollar Risk**: Position size = $\frac{Equity \times RiskPct}{StopDistance}$.
