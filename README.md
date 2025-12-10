@@ -120,7 +120,7 @@ $$\mathcal{D}_{test}^{(k)} = \lbrace X_t : t \in (T_{cutoff} + k\Delta, T_{cutof
 
 **Inference**:
 
-$$\hat{y}_t = f(X_t; \theta_k^{*}) \quad \text{where} \quad \theta_k^{*} = \arg\min_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta)$$
+$$\hat{y}_t = f(X_t; \theta_k^{\ast}) \quad \text{where} \quad \theta_k^{\ast} = \arg\min_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta)$$
 
 This ensures that at any time $t$, the model parameters $\theta$ are derived *only* from information available at $t-1$.
 
