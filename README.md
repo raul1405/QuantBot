@@ -59,38 +59,48 @@ $$ H(\mathbf{p}) = -\sum_{k \in \{ \text{down, neut, up} \}} p_k \log_2(p_k) $$
 ### 4.3. Higher Moment Analysis (Tail Risk)
 We monitor the 3rd and 4th moments to detect "Crash Deviations" before they manifest in price:
 
-*   **Rolling Skewness ($\gamma_1$)**: Asymmetry signals downside tail risk.
-    $$ \gamma_1 = \mathbb{E}\left[\left(\frac{R_t - \mu}{\sigma}\right)^3\right] $$
+**Rolling Skewness** — Asymmetry signals downside tail risk:
 
-*   **Rolling Kurtosis ($\kappa$)**: Excess Kurtosis ($>3$) indicates "Fat Tails" (leptokurtic risk).
-    $$ \kappa = \mathbb{E}\left[\left(\frac{R_t - \mu}{\sigma}\right)^4\right] $$
+$$\gamma_1 = \mathbb{E}\left[\left(\frac{R_t - \mu}{\sigma}\right)^3\right]$$
 
-*   **Downside Volatility ($\sigma_{down}$)**: Isolates "Crash Variance" from "Melt-up Variance".
-    $$ \sigma_{down} = \sqrt{\frac{1}{N} \sum_{r_i < 0} r_i^2} $$
+**Rolling Kurtosis** — Excess Kurtosis (>3) indicates "Fat Tails" (leptokurtic risk):
+
+$$\kappa = \mathbb{E}\left[\left(\frac{R_t - \mu}{\sigma}\right)^4\right]$$
+
+**Downside Volatility** — Isolates "Crash Variance" from "Melt-up Variance":
+
+$$\sigma_{down} = \sqrt{\frac{1}{N} \sum_{r_i < 0} r_i^2}$$
 
 ## 5. Volatility Physics & Regime Filters
 
 We employ statistical mechanics to categorize market states (regimes) and noise levels.
 
 ### 5.1. Volatility Physics (Microstructure)
-*   **Efficiency Ratio (Kaufman)**: Measures "Trend Purity" vs. Noise.
-    $$ ER_t = \frac{|P_t - P_{t-n}|}{\sum_{i=0}^{n-1} |P_{t-i} - P_{t-i-1}|} $$
-    *   $ER \to 1$: Laminar flow (Clean Trend).
-    *   $ER \to 0$: Turbulent flow (Mean Reversion/Noise).
 
-*   **Potential Energy (Volatility Compression)**:
-    $$ \Psi_{vol} = \frac{ATR_{fast}(P)}{ATR_{slow}(P)} $$
-    *   $\Psi < 1$: Compression (Potential Energy Buildup).
-    *   $\Psi > 1$: Expansion (Kinetic Energy Release).
+**Efficiency Ratio (Kaufman)** — Measures "Trend Purity" vs. Noise:
+
+$$ER_t = \frac{|P_t - P_{t-n}|}{\sum_{i=0}^{n-1} |P_{t-i} - P_{t-i-1}|}$$
+
+- $ER \to 1$: Laminar flow (Clean Trend)
+- $ER \to 0$: Turbulent flow (Mean Reversion/Noise)
+
+**Potential Energy (Volatility Compression)**:
+
+$$\Psi_{vol} = \frac{ATR_{fast}(P)}{ATR_{slow}(P)}$$
+
+- $\Psi < 1$: Compression (Potential Energy Buildup)
+- $\Psi > 1$: Expansion (Kinetic Energy Release)
 
 ### 5.2. Statistical Regime Classification (HMM Proxy)
 Instead of fitting a latent Gaussian Mixture Model (which is unstable in small-N samples), we use robust **Quantile-Based Filters** to approximate hidden states:
 
-*   **Volatility State ($S_t^{\sigma}$)**:
-    $$ S_t^{\sigma} = \begin{cases} \text{High} & \text{if } \sigma_t > Q_{75}(\sigma_{roll}) \\ \text{Low} & \text{if } \sigma_t < Q_{25}(\sigma_{roll}) \\ \text{Normal} & \text{otherwise} \end{cases} $$
+**Volatility State**:
 
-*   **Trend State ($S_t^{\mu}$)**: Defined by the divergence of Fast vs Slow Moving Averages ($MA_{fast} - MA_{slow}$):
-    $$ S_t^{\mu} = \text{sign}\left( \frac{\partial}{\partial t} MA_{slow} \right) \cdot \mathbb{I}\left( |MA_{fast} - MA_{slow}| > \epsilon \right) $$
+$$S_t^{\sigma} = \begin{cases} \text{High} & \text{if } \sigma_t > Q_{75}(\sigma_{roll}) \\\\ \text{Low} & \text{if } \sigma_t < Q_{25}(\sigma_{roll}) \\\\ \text{Normal} & \text{otherwise} \end{cases}$$
+
+**Trend State** — Defined by the divergence of Fast vs Slow Moving Averages:
+
+$$S_t^{\mu} = \text{sign}\left( \frac{\partial}{\partial t} MA_{slow} \right) \cdot \mathbb{I}\left( |MA_{fast} - MA_{slow}| > \epsilon \right)$$
 
 ![Regime Classification Analysis](docs/images/regime_analysis.png)
 
@@ -98,16 +108,19 @@ Instead of fitting a latent Gaussian Mixture Model (which is unstable in small-N
 
 To eliminate look-ahead bias, the system employs a rigid **Rolling Window** schema for model training and inference.
 
-$$ \forall k \in [1, K]: $$
+$$\forall k \in [1, K]:$$
 
-1.  **Training Set ($\mathcal{D}_{train}^{(k)}$)**:
-    $$ \mathcal{D}_{train}^{(k)} = \{ (X_t, y_t) \mid t \in [T_{start} + k\Delta, T_{cutoff} + k\Delta] \} $$
+**Training Set**:
 
-2.  **Test Set ($\mathcal{D}_{test}^{(k)}$)**:
-    $$ \mathcal{D}_{test}^{(k)} = \{ (X_t) \mid t \in (T_{cutoff} + k\Delta, T_{cutoff} + k\Delta + W_{test}] \} $$
+$$\mathcal{D}_{train}^{(k)} = \{ (X_t, y_t) \mid t \in [T_{start} + k\Delta, T_{cutoff} + k\Delta] \}$$
 
-3.  **Inference**:
-    $$ \hat{y}_t = f(X_t; \theta^*_k) \quad \text{where} \quad \theta^*_k = \text{argmin}_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta) $$
+**Test Set**:
+
+$$\mathcal{D}_{test}^{(k)} = \{ (X_t) \mid t \in (T_{cutoff} + k\Delta, T_{cutoff} + k\Delta + W_{test}] \}$$
+
+**Inference**:
+
+$$\hat{y}_t = f(X_t; \theta^*_k) \quad \text{where} \quad \theta^*_k = \text{argmin}_{\theta} \mathcal{L}(\mathcal{D}_{train}^{(k)}, \theta)$$
 
 This ensures that at any time $t$, the model parameters $\theta$ are derived *only* from information available at $t-1$.
 
@@ -119,20 +132,22 @@ The `RiskGuardian` module acts as a codified Investment Committee, enforcing man
 
 ### 7.1. Daily Loss Limit (DLL)
 Constraint enforcing the "5% Rule":
-$$ \sum_{i \in \text{Trades}} \text{PnL}_i(t) + \text{OpenPnL}(t) \ge -\delta_{limit} \cdot \text{Equity}_{SOD} $$
-*   If violated: $\text{HaltTrading}(t) = \text{True}$.
+
+$$\sum_{i \in \text{Trades}} \text{PnL}_i(t) + \text{OpenPnL}(t) \ge -\delta_{limit} \cdot \text{Equity}_{SOD}$$
+
+If violated: `HaltTrading(t) = True`.
 
 ### 7.2. Max Drawdown & De-Leveraging
-The system tracks the High Watermark ($HWM_t$) and penalizes risk-taking based on Drawdown Depth ($DD_t$):
+The system tracks the High Watermark and penalizes risk-taking based on Drawdown Depth:
 
-$$ DD_t = 1 - \frac{\text{Equity}_t}{\max_{0 \le \tau \le t} \text{Equity}_\tau} $$
+$$DD_t = 1 - \frac{\text{Equity}_t}{\max_{0 \le \tau \le t} \text{Equity}_\tau}$$
 
 ### 7.3. Behavioral Circuit Breakers (Revenge Trading Protection)
-To prevent "Tilt" or behavioral error, the system enforces a `CoolDown` penalty on position sizing ($S_{qty}$) following significant drawdowns:
+To prevent "Tilt" or behavioral error, the system enforces a `CoolDown` penalty on position sizing following significant drawdowns:
 
-$$ S_{qty}^* = S_{qty} \cdot \Phi_{penalty}(t) $$
+$$S_{qty}^* = S_{qty} \cdot \Phi_{penalty}(t)$$
 
-$$ \Phi_{penalty}(t) = \begin{cases} 0.5 & \text{if } \exists \tau \in [t-5, t] : DD_\tau - DD_{\tau-1} > \text{Shock} \\ 1.0 & \text{otherwise} \end{cases} $$
+$$\Phi_{penalty}(t) = \begin{cases} 0.5 & \text{if } \exists \tau \in [t-5, t] : DD_\tau - DD_{\tau-1} > \text{Shock} \\\\ 1.0 & \text{otherwise} \end{cases}$$
 
 ![Equity Curve with Drawdown Analysis](docs/images/equity_drawdown.png)
 
