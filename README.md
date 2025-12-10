@@ -315,11 +315,19 @@ The `/experiments` folder contains isolated research modules. Each experiment is
 
 | Parameter | Value | Description |
 |-----------|-------|-------------|
-| `risk_per_trade` | 5.0% | Position sizing as % of equity. |
-| `max_concurrent_trades` | 10 | Maximum open positions. |
-| `daily_loss_limit_pct` | 5.0% | FTMO Daily Loss Limit. |
-| `overall_loss_limit_pct` | 10.0% | FTMO Max Drawdown Limit. |
+| `use_kelly` | `True` | Enables Kelly Criterion for dynamic position sizing. |
+| `kelly_fraction` | 0.5 | "Half-Kelly" — conservative scalar to reduce overbetting risk. |
+| `risk_per_trade` | 5.0% | **Max Risk Cap** — Upper bound on $ at risk per trade (% of equity to stop-loss). |
+| `max_concurrent_trades` | 10 | Maximum simultaneous open positions. |
+| `daily_loss_limit_pct` | 5.0% | FTMO constraint: Max daily drawdown. |
+| `overall_loss_limit_pct` | 10.0% | FTMO constraint: Max total drawdown from peak. |
 | `wfo_train_bars` | 500 | Walk-Forward training window (bars). |
-| `wfo_test_bars` | 100 | Walk-Forward test window (bars). |
-| `ml_prob_threshold_long` | 0.505 | Minimum probability for Long signal. |
-| `min_prob_margin` | 0.05 | Minimum confidence margin for entry. |
+| `wfo_test_bars` | 100 | Walk-Forward test/validation window (bars). |
+| `ml_prob_threshold_long` | 0.505 | Minimum P(Up) for Long signal activation. |
+| `min_prob_margin` | 0.05 | Minimum confidence margin (P(direction) - 0.5) for entry. |
+
+**Position Sizing Logic**:
+1. **Kelly Criterion**: $f^* = p - \frac{1-p}{b}$ where $p$ = win probability, $b$ = R-Multiple (target 1.5).
+2. **Half-Kelly**: Actual allocation = $0.5 \times f^*$ to reduce variance.
+3. **Risk Cap**: Final allocation = $\min(f^*_{half}, \text{risk\_per\_trade})$ to prevent over-exposure.
+4. **Dollar Risk**: Position size = $\frac{\text{Equity} \times \text{Risk\%}}{\text{Stop Distance}}$.
