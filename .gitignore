@@ -3,28 +3,81 @@ __pycache__/
 *.py[cod]
 *$py.class
 *.so
-.env
-.venv
-env/
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Virtual Environments
 venv/
 ENV/
-env.bak/
-venv.bak/
+env/
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# Environment & Secrets
+.env
+.env.local
+*.pem
+*.key
+secrets/
+credentials/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
 
 # Logs
-logs/
-live_logs/
 *.log
+logs/
+*.tmp
 
-# MT5
+# Data files (large)
+*.csv
+*.parquet
+*.pkl
+*.h5
+data/
+
+# Model files (large)
+*.xgb
+*.model
+models/
+
+# Reports (regeneratable)
+reports/*.pdf
+
+# Cache
+.cache/
+*.cache
+
+# MT5 specific
 *.ex5
-live_config.json
-# Note: We usually exclude config with secrets, but for this specific "Plug & Play" request where I just added secrets to json for convenience, I will leave it. 
-# WAIT. Security Best practice: ignore live_config.json if it has secrets?
-# The user wants to "copy paste" and "clone". If I ignore it, they can't clone the config.
-# I will NOT ignore live_config.json for now, but I will warn them.
-# Actually, I added secrets to .env (which IS ignored) and updated the checklist to generate .env on the server.
-# So I SHOULD ignore .env.
-
-# Artifacts/Temp
-.DS_Store
+*.mq5

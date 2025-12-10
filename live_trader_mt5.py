@@ -716,16 +716,23 @@ class LiveTrader:
         scan_results = []
         for sym_int, df in live_data.items():
             last_bar = df.iloc[-1]
-            prev_bar = df.iloc[-25] if len(df) >= 25 else df.iloc[0]  # ~24h ago for H1
-            
-            signal = last_bar.get('S_Alpha', 0)
-            p_up = last_bar.get('prob_up', 0.0)
-            p_down = last_bar.get('prob_down', 0.0)
-            
-            # --- ALPHA v5 (Tick Overlay) ---
-            mt5_sym = SYMBOL_MAP[sym_int]
-            tick_delta = 0.0
-            try:
+                # CRITICAL AUDIT FIX: Use CLOSED BAR (Index -2) for Stable Signal
+                # Index -1 is current forming bar (Repaints).
+                # Index -2 is last completed bar (Stable).
+                
+                # Check if we have enough data
+                if len(df) < 3: continue
+                
+                # Use completed bar for signal
+                last_bar = df.iloc[-2]  
+                
+                # Use forming bar only for Current Price / Spread reference
+                forming_bar = df.iloc[-1] 
+                
+                # Check Time freshness (ensure we are close to new bar open)
+                # If last_bar time is hour H, we should be in hour H+1.
+                # This logic is handled by the loop frequency, but we trust the data.
+                
                 # Fetch only last 60 mins to be fast (Hacker Optimization)
                 tick_delta = self.engines['tick'].get_tick_alpha(mt5_sym, lookback_minutes=60)
             except Exception as e:
@@ -746,12 +753,17 @@ class LiveTrader:
             close = last_bar.get('Close', 1)
             atr_pct = (atr / close) * 100 if close else 0
             
-            # Spread Check
+            # Spread Check (Live)
             info = self.mt5.symbol_info(mt5_sym)
             spread_pts = info.spread if info else 0
             
-            # 24h Change %
-            chg_24h = ((close - prev_bar['Close']) / prev_bar['Close']) * 100 if prev_bar['Close'] else 0
+            # current price from forming bar
+            current_price = forming_bar.get('Close', 0)
+            
+            # 24h Change % (Use closed bar for consistency)
+            # prev_bar index -26 (24h before -2)
+            prev_bar = df.iloc[-26] if len(df) >= 26 else df.iloc[0]
+            chg_24h = ((last_bar['Close'] - prev_bar['Close']) / prev_bar['Close']) * 100 if prev_bar['Close'] else 0
             
             # Position Status
             pos_status = ""
@@ -768,7 +780,7 @@ class LiveTrader:
                 'dist': dist_val,
                 'spread': spread_pts,
                 'sym': mt5_sym,
-                'price': close,
+                'price': current_price,
                 'p_up': p_up,
                 'p_dn': p_down,
                 'p_nt': 1.0 - p_up - p_down,
@@ -838,9 +850,12 @@ class LiveTrader:
         os.system('cls')
         print("\n".join(lines))
         
-        # 5. EXECUTION LOGIC (Silent unless trade happens)
+        # 5. EXECUTION LOGIC (Strict Bar Close)
         for sym_int, df in live_data.items():
-            last_bar = df.iloc[-1]
+            if len(df) < 3: continue
+            
+            # Use same stable bar
+            last_bar = df.iloc[-2]
             signal = last_bar.get('S_Alpha', 0) 
             target_direction = 0
             if signal == 1: target_direction = 1
