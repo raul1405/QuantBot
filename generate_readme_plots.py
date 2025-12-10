@@ -41,7 +41,7 @@ def add_watermark(fig):
 # 1. EQUITY CURVE WITH DRAWDOWN
 # =============================================================================
 def plot_equity_drawdown():
-    np.random.seed(42)
+    np.random.seed(2025) # Fresh seed for Audit Version
     
     # Generate realistic equity curve
     days = 365
