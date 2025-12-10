@@ -26,6 +26,17 @@ plt.rcParams['legend.edgecolor'] = '#30363d'
 # Create output directory
 os.makedirs('docs/images', exist_ok=True)
 
+# Watermark configuration
+WATERMARK_TEXT = "© Raul Schalkhammer 2025"
+
+def add_watermark(fig):
+    """Add author watermark to figure."""
+    fig.text(0.99, 0.01, WATERMARK_TEXT, 
+             fontsize=9, color='#8b949e', alpha=0.7,
+             ha='right', va='bottom',
+             transform=fig.transFigure,
+             style='italic')
+
 # =============================================================================
 # 1. EQUITY CURVE WITH DRAWDOWN
 # =============================================================================
@@ -92,6 +103,7 @@ def plot_equity_drawdown():
     ax2.xaxis.set_major_locator(mdates.MonthLocator(interval=2))
     
     plt.tight_layout()
+    add_watermark(fig)
     plt.savefig('docs/images/equity_drawdown.png', dpi=150, 
                 bbox_inches='tight', facecolor='#0d1117')
     plt.close()
@@ -147,6 +159,7 @@ def plot_monthly_heatmap():
                  fontsize=14, fontweight='bold', pad=15)
     
     plt.tight_layout()
+    add_watermark(fig)
     plt.savefig('docs/images/monthly_heatmap.png', dpi=150, 
                 bbox_inches='tight', facecolor='#0d1117')
     plt.close()
@@ -225,6 +238,7 @@ def plot_regime_analysis():
     ax2.xaxis.set_major_locator(mdates.MonthLocator())
     
     plt.tight_layout()
+    add_watermark(fig)
     plt.savefig('docs/images/regime_analysis.png', dpi=150, 
                 bbox_inches='tight', facecolor='#0d1117')
     plt.close()
@@ -292,6 +306,7 @@ def plot_entropy_analysis():
     ax3.xaxis.set_major_locator(mdates.MonthLocator())
     
     plt.tight_layout()
+    add_watermark(fig)
     plt.savefig('docs/images/entropy_analysis.png', dpi=150, 
                 bbox_inches='tight', facecolor='#0d1117')
     plt.close()
@@ -352,6 +367,7 @@ def plot_wfo_schema():
             fontsize=11, style='italic', color='#8b949e', ha='center')
     
     plt.tight_layout()
+    add_watermark(fig)
     plt.savefig('docs/images/wfo_schema.png', dpi=150, 
                 bbox_inches='tight', facecolor='#0d1117')
     plt.close()

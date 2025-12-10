@@ -2,6 +2,10 @@
 
 **A quantitative capital allocation and stress-testing system designed for regime-aware portfolio construction under strict leverage and drawdown constraints.**
 
+> **Author**: Raul Schalkhammer  
+> **Year**: 2025  
+> **License**: All Rights Reserved
+
 ---
 
 ## 1. Abstract
