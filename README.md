@@ -317,17 +317,16 @@ The `/experiments` folder contains isolated research modules. Each experiment is
 |-----------|-------|-------------|
 | `use_kelly` | `True` | Enables Kelly Criterion for dynamic position sizing. |
 | `kelly_fraction` | 0.5 | "Half-Kelly" — conservative scalar to reduce overbetting risk. |
-| `risk_per_trade` | 5.0% | **Max Risk Cap** — Upper bound on $ at risk per trade (% of equity to stop-loss). |
-| `max_concurrent_trades` | 10 | Maximum simultaneous open positions. |
+| `risk_per_trade` | 0.5% | **Max Risk Cap** — Conservative starting risk per trade (0.5% of equity). |
+| `max_concurrent_trades` | 5 | Maximum simultaneous open positions (Focused). |
 | `daily_loss_limit_pct` | 5.0% | FTMO constraint: Max daily drawdown. |
-| `overall_loss_limit_pct` | 10.0% | FTMO constraint: Max total drawdown from peak. |
 | `wfo_train_bars` | 500 | Walk-Forward training window (bars). |
 | `wfo_test_bars` | 100 | Walk-Forward test/validation window (bars). |
-| `ml_prob_threshold_long` | 0.505 | Minimum P(Up) for Long signal activation. |
-| `min_prob_margin` | 0.05 | Minimum confidence margin (P(direction) - 0.5) for entry. |
+| `ml_prob_threshold_long` | 0.52 | Minimum P(Up) for Long signal activation (>52%). |
+| `use_entropy_sizing` | `True` | **New**: Scales down size if Prediction Entropy is high (Uncertainty). |
 
-**Position Sizing Logic**:
+**Position Sizing Logic (Institutional)**:
 1. **Kelly Criterion**: $f^{*} = p - \frac{1-p}{b}$ where $p$ = win probability, $b$ = R-Multiple (target 1.5).
 2. **Half-Kelly**: Actual allocation = $0.5 \times f^{*}$ to reduce variance.
-3. **Risk Cap**: Final allocation = $\min(f_{half}^{*}, R_{max})$ to prevent over-exposure.
-4. **Dollar Risk**: Position size = $\frac{Equity \times RiskPct}{StopDistance}$.
+3. **Entropy Penalty**: $S_{adj} = S_{raw} \times (1 - \text{EntropyRatio})$. If model is uncertain, size $\to$ 0.
+4. **Risk Cap**: Final allocation = $\min(S_{adj}, \text{RiskMax})$.
