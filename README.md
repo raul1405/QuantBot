@@ -191,5 +191,116 @@ Despite transient alpha, the **Risk Architecture** proved robust. The HMM filter
 **For Quantitative Research Only.**
 This software is provided "as is" as a framework for modeling complex financial systems. It serves as a theoretical testbed and does not constitute investment advice or an offer to manage assets.
 
+---
 
+## Appendix: Complete Repository Walkthrough
 
+This section provides a comprehensive description of every file and directory in the repository.
+
+### Core Engine Files
+
+| File | Description |
+|------|-------------|
+| `quant_backtest.py` | **Primary Simulation Kernel**. Contains `Config`, `DataLoader`, `FeatureEngine`, `RegimeEngine`, `AlphaEngine` (XGBoost), and `Backtester` classes. Implements WFO, feature engineering, and signal generation. |
+| `phoenix_engine.py` | **Execution & Risk Layer**. Houses `RiskGuardian` (DLL/DD enforcement), `Trade` dataclass, and `PhoenixBacktester` for trade lifecycle management. |
+| `live_trader_mt5.py` | **Production Execution Bridge**. Connects to MetaTrader 5, translates signals to orders, manages position sizing, and enforces live risk limits. |
+| `live_trader_indices.py` | Variant of live trader for index-based instruments (e.g., NAS100, US30). |
+| `telegram_dashboard_bot.py` | **Operational Telemetry**. Real-time Telegram bot broadcasting equity, PnL, positions, and FTMO safety status. Supports `/live`, `/stop`, `/status` commands. |
+| `investor_reporting.py` | **Reporting Suite**. Generates equity curves, monthly heatmaps, and markdown factsheets using `matplotlib`/`seaborn`. |
+| `generate_readme_plots.py` | Script to regenerate all visualization PNGs for the README. |
+| `monitor_forward_test.py` | **Watchdog Script**. Monitors live trader process, auto-restarts on failure, logs uptime. |
+
+### Configuration
+
+| File | Description |
+|------|-------------|
+| `live_config.json` | Production configuration (API keys, symbol mappings, risk parameters). **Gitignored in production.** |
+| `live_config.example.json` | Template configuration file for deployment. |
+| `config/universe_definitions.py` | Defines asset universes (Forex Majors, Crosses, Indices) with liquidity tiers. |
+| `config/symbol_map_ftmo_RESEARCH.json` | Mapping between Yahoo Finance tickers and MT5 symbol names. |
+| `setup_config.py` | Interactive setup wizard for generating `live_config.json`. |
+
+### Audit & Validation
+
+| Directory/File | Description |
+|----------------|-------------|
+| `audit/check_features.py` | Validates feature engineering logic against known benchmarks. |
+| `audit/replication_run.py` | Replicates historical backtest to verify determinism. |
+| `audit/stress_test.py` | Runs stress scenarios (2008 GFC, 2020 Covid) on the engine. |
+| `validation/strategy_validator.py` | Comprehensive validation suite (IS/OOS splits, Monte Carlo). |
+| `validation/run_validation_fx.py` | FX-specific validation runner. |
+| `validation/validation_report_fx.md` | Generated validation report for FX universe. |
+| `validation/overfitting_audit.md` | Documentation of overfitting detection methodology. |
+| `validation/family_c_viability.md` | Viability assessment for "Family C" (High-Vol) strategy. |
+
+### Experiments Directory
+
+The `/experiments` folder contains isolated research modules. Each experiment is self-contained and does not modify the core engine.
+
+| Subdirectory | Description |
+|--------------|-------------|
+| `family_a_ml/` | Primary ML Alpha experiments (EXP001-EXP008). Includes ablation studies, threshold tuning, and stress tests. |
+| `cpi_khem_framework/` | **CPI Event Framework**. Research into macro-event-driven strategies using FRED CPI data. Contains `cpi_engine.py` and 6 experiment scripts. |
+| `deep_science_stat_arb/` | Statistical Arbitrage research using cointegration and Ornstein-Uhlenbeck processes. |
+| `high_vol_family_c/` | Research into high-volatility regime strategies (VIX > 25). |
+| `project_beta_soft_markets/` | Experimental research into "Soft Markets" (Sports betting) as an alternative alpha source. |
+| `archive_legacy/` | Deprecated experiments preserved for reference. |
+
+**Key Experiment Files**:
+| File | Description |
+|------|-------------|
+| `ftmo_monte_carlo.py` | Monte Carlo simulation for FTMO challenge pass probability. |
+| `ftmo_monte_carlo_stress.py` | Stress-tested Monte Carlo with adverse scenarios. |
+| `optimize_risk_ftmo.py` | Grid search for optimal risk parameters under FTMO constraints. |
+| `comprehensive_validation.py` | Full validation pipeline with benchmarking. |
+| `diagnose_sharpe_errors.py` | Diagnostic tool for unrealistic Sharpe ratios. |
+
+### Notes & Documentation
+
+| File | Description |
+|------|-------------|
+| `notes/council_guidelines.md` | Guidelines for the "LLM Council" review process. |
+| `notes/council_review_packet.md` | Template for submitting strategy changes to the council. |
+| `notes/deployment_manifest.md` | Deployment checklist for VPS/production. |
+| `notes/ftmo_constraints_RESEARCH.md` | Deep-dive research on FTMO rule interpretations. |
+| `notes/model_diary.md` | Running log of model changes and performance impacts. |
+| `notes/research_reset.md` | Document explaining the "Reset" after identifying overfitting. |
+| `notes/telegram_setup.md` | Guide for configuring Telegram bot integration. |
+| `notes/vps_checklist.md` | Pre-flight checklist for Windows VPS deployment. |
+
+### Tools
+
+| File | Description |
+|------|-------------|
+| `tools/council.py` | CLI tool for invoking the "LLM Council" for strategy review. |
+| `tools/monte_carlo_validator.py` | Standalone Monte Carlo validation utility. |
+| `tools/scan_mt5_symbols.py` | Scans MT5 for available symbols and their specifications. |
+| `tools/check_mt5_symbols.py` | Validates symbol mappings between Yahoo and MT5. |
+
+### Tests
+
+| File | Description |
+|------|-------------|
+| `tests/test_execution_logic.py` | Unit tests for order execution logic. |
+| `tests/test_parity.py` | Parity tests ensuring backtest matches live behavior. |
+
+### Reports & Artifacts
+
+| Directory | Description |
+|-----------|-------------|
+| `reports/` | Auto-generated strategy factsheets and performance reports. |
+| `docs/images/` | Matplotlib visualizations embedded in README. |
+| `artifacts/cpi_charts/` | Results from CPI framework experiments. |
+
+### Key Configuration Parameters (`Config` class in `quant_backtest.py`)
+
+| Parameter | Value | Description |
+|-----------|-------|-------------|
+| `risk_per_trade` | 5.0% | Position sizing as % of equity. |
+| `max_concurrent_trades` | 10 | Maximum open positions. |
+| `daily_loss_limit_pct` | 5.0% | FTMO Daily Loss Limit. |
+| `overall_loss_limit_pct` | 10.0% | FTMO Max Drawdown Limit. |
+| `wfo_train_bars` | 500 | Walk-Forward training window (bars). |
+| `wfo_test_bars` | 100 | Walk-Forward test window (bars). |
+| `ml_prob_threshold_long` | 0.505 | Minimum probability for Long signal. |
+| `min_prob_margin` | 0.05 | Minimum confidence margin for entry. |
