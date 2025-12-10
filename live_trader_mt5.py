@@ -448,9 +448,9 @@ class LiveTrader:
         
         # CRITICAL OVERRIDES FOR LIVE EXECUTION
         self.config.mode = "LIVE"
-        self.config.use_rank_logic = True
-        self.config.rank_top_n = 1
-        self.config.rank_top_n = 1
+        # self.config.use_rank_logic = True # REMOVED: Audit Finding (Lookahead Bias / Forced Trades)
+        # self.config.rank_top_n = 1
+
         # Costs inherit from Config (0.00003 for FX)
         
         self.engines = {
@@ -630,22 +630,38 @@ class LiveTrader:
         # ... existing ...
         return True
 
-    def calculate_dynamic_size(self, equity, price, sl_dist, prob_win, contract_size):
-        if sl_dist <= 0: return 0.0
+    def calculate_dynamic_size(self, equity, price, sl_dist, prob_win, contract_size, entropy=0.0):
+        if sl_dist <= 0: return 0.0, 0.0
         
-        b = 1.0 
+        b = 1.5 # Adjusted to match Backtest Config
         kelly = prob_win - (1 - prob_win) / b
-        safe_fraction = kelly * 0.5
+        
+        # Quarter-Kelly for Live Safety (Audit Suggestion)
+        safe_fraction = kelly * 0.25 
+        
         if safe_fraction < 0: safe_fraction = 0.0
         
-        max_risk = 0.05 # 5.0% (Optimal Sweet Spot)
+        max_risk = self.config.risk_per_trade 
         used_risk = min(max_risk, safe_fraction)
+        
+        # === ENTROPY PENALTY ===
+        if self.config.use_entropy_sizing:
+             ent_threshold = 0.8
+             ent_cap = self.config.max_entropy_threshold
+             
+             if entropy < ent_threshold:
+                 entropy_mult = 1.0
+             elif entropy > ent_cap:
+                 entropy_mult = 0.0
+             else:
+                 ratio = (entropy - ent_threshold) / (ent_cap - ent_threshold)
+                 entropy_mult = 1.0 - ratio
+             
+             used_risk *= entropy_mult
         
         risk_amt = equity * used_risk
         
         # Volume = Risk / (SL_Dist * ContractSize)
-        # SL_Dist is price difference.
-        # Dollar Risk = Vol * Size * SL_Dist
         volume = risk_amt / (sl_dist * contract_size)
         
         return volume, used_risk
@@ -772,7 +788,7 @@ class LiveTrader:
                 pos_status = "L" if p['type'] == 'BUY' else "S"
             
             # Distance to Trigger
-            threshold = self.config.ml_prob_threshold_long # 0.505
+            threshold = self.config.ml_prob_threshold_long
             max_prob = max(p_up, p_down)
             dist_val = threshold - max_prob
                 
@@ -882,7 +898,8 @@ class LiveTrader:
                 
                 # Dynamic Sizing Call
                 # Returns: volume, used_risk_pct
-                volume, used_risk_pct = self.calculate_dynamic_size(acct.equity, price, sl_dist, prob_win, self.config.risk_per_trade)
+                entropy = last_bar.get('prob_entropy', 0.0)
+                volume, used_risk_pct = self.calculate_dynamic_size(acct.equity, price, sl_dist, prob_win, contract_size, entropy=entropy)
                 
                 risk_amt = acct.equity * used_risk_pct
                 

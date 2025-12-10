@@ -125,12 +125,15 @@ def main():
     print("Adjusting windows to fit yfinance 730-day limit (approx late 2023 start)...")
     
     # Window A (History)
-    res_A_maj = run_replication(UNIVERSE_MAJORS, "2024-01-01", "2024-12-31", "Window A (2024) Majors")
-    res_A_liq = run_replication(UNIVERSE_LIQUID, "2024-01-01", "2024-12-31", "Window A (2024) Liquid")
+    # Adjusted to respect 730-day limit from Dec 2025
+    # Limit date: ~Dec 2023.
+    # WFO Warmup needs 200 days. So Start Date must be > July 2024.
     
-    # Window B (Current Regime)
-    # yfinance data might not go to today in this sim, but let's try.
-    # User time is Dec 2025. So 2025 is valid.
+    # Window A (Late 2024)
+    res_A_maj = run_replication(UNIVERSE_MAJORS, "2024-08-01", "2024-12-31", "Window A (Late 2024) Majors")
+    res_A_liq = run_replication(UNIVERSE_LIQUID, "2024-08-01", "2024-12-31", "Window A (Late 2024) Liquid")
+    
+    # Window B (2025 YTD)
     res_B_maj = run_replication(UNIVERSE_MAJORS, "2025-01-01", "2025-11-30", "Window B (2025 YTD) Majors")
     res_B_liq = run_replication(UNIVERSE_LIQUID, "2025-01-01", "2025-11-30", "Window B (2025 YTD) Liquid")
     

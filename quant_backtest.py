@@ -125,18 +125,15 @@ class Config:
         'eval_metric': 'mlogloss',
         'seed': 42
     })
-    # THRESHOLD OPTIMIZATION: Signal Force (0.505)
-    ml_prob_threshold_long: float = 0.505  # Lowered to force activity
-    ml_prob_threshold_short: float = 0.505 # Lowered to force activity
+    # THRESHOLD OPTIMIZATION: Signal Force
+    ml_prob_threshold_long: float = 0.52   # Reasonable edge required (>52%)
+    ml_prob_threshold_short: float = 0.52 
     ml_target_horizon: int = 1
     
     # === Rank Signal Config (Alpha V3) ===
-    use_rank_logic: bool = True  # ENABLED: Force Signal via Ranking
-    rank_top_n: int = 1          # Long Top 1, Short Bottom 1
+    use_rank_logic: bool = False # DISABLED (Audit: Look-Ahead Bias / Forced Trades)
+    rank_top_n: int = 1          
     
-    # ROLLING WINDOW CONFIG
-    # yfinance 1h data limit is ~730 days.
-    # We train on first 80%, Test/Trade on last 20%.
     # ROLLING WINDOW CONFIG
     # yfinance 1h data limit is ~730 days.
     # We train on first 80%, Test/Trade on last 20%.
@@ -145,8 +142,8 @@ class Config:
     
     # === WFO Parameters (Walk-Forward Optimization) ===
     # For Hourly data (approx 7 trading hours/day * 20 days = 140 bars/month)
-    wfo_train_bars: int = 500  # Reduced from 1500 to ensure fitting in test set
-    wfo_test_bars: int = 100   # Reduced from 140     # Approx 1 month OOS prediction
+    wfo_train_bars: int = 500  
+    wfo_test_bars: int = 100   
     mode: str = "BACKTEST"       # "BACKTEST" (WFO) or "LIVE" (Full Train)
     
     # === Stat Arb Config ===
@@ -160,32 +157,35 @@ class Config:
     # === Risk Management ===
     initial_balance: float = 100000.0
     account_leverage: float = 30.0 # FTMO Swing
-    # RISK MANAGEMENT (FINAL SCIENTIFIC CALIBRATION)
-    # RISK MANAGEMENT (FINAL SCIENTIFIC CALIBRATION)
+    
     # RISK MANAGEMENT (FINAL SCIENTIFIC CALIBRATION)
     # Scaled 2024-12-09: 3.3% Risk (Monte Carlo Validated)
     # 95% CI Max Drawdown < 8.0%. Exp Return ~17%.
-    risk_per_trade: float = 0.05         # 5.0% per trade (Final Live Setting)
-    max_concurrent_trades: int = 10      # Focused (Reduced from 15)
+    risk_per_trade: float = 0.005        # 0.5% per trade (Conservative Start)
+    max_concurrent_trades: int = 5       # Focused (Reduced from 10)
     max_exposure_per_currency: int = 10 
     
     # === COSTS ===
-    transaction_cost: float = 0.0005     # 5 basis points (0.05%) per side.
+    transaction_cost: float = 0.0010     # 10 basis points (0.10%) conservative default (if not modeled per asset)
     
     # === Institutional Entry/Exit (No Retail Astrology) ===
     # 1. High Confidence Entry
-    min_prob_margin: float = 0.05        # Lowered to 0.05 (Top ~7%)
+    min_prob_margin: float = 0.04        # Required margin (Prob_Dir - Prob_Neutral)
     high_conf_threshold: float = 0.10    # Override regime blocks if confidence > this
     
-    # 2. Signal-Driven Exits (Medallion Style)
+    # 2. Key Audit Fix: Entropy Sizing
+    use_entropy_sizing: bool = True
+    max_entropy_threshold: float = 1.0   # If Ent > 1.0 (very uncertain), size -> 0
+    
+    # 3. Signal-Driven Exits (Medallion Style)
     use_signal_decay_exit: bool = True   # ENABLED (Vital for Sharpe)
     signal_decay_threshold: float = 0.45 # Exit if signal drops below this
     emergency_sl_mult: float = 5.0       # Catastrophe protection only
-    max_bars_in_trade: int = 30          # Time exit
+    max_bars_in_trade: int = 40          # Time exit (Extended slightly)
     
     # Kelly Criterion
     use_kelly: bool = True
-    kelly_fraction: float = 1.0
+    kelly_fraction: float = 0.5          # Half-Kelly (Audit Recommendation)
     min_win_rate_for_kelly: float = 0.51
     kelly_lookback: int = 50
     
@@ -477,49 +477,27 @@ class FeatureEngine:
         return processed
 
     def add_cross_sectional_features_all(self, data: Dict[str, pd.DataFrame]) -> Dict[str, pd.DataFrame]:
-        # B. Cross-Sectional Features (Across Symbols)
-        # Momentum Ranks (24h, 5d) and Vol Rank
+        # B. "Relative Value" Features (REVISED FOR AUDIT)
+        # Replaced Leaky Cross-Sectional Rank with Rolling Longitudinal Rank.
+        # This ranks the current value against ITS OWN history, not against others at time t.
         
-        # 1. Create Pivot Tables
-        # Need aligned index. Data is already aligned by DataLoader.
+        print(f"  [AUDIT FIX] Applying Longitudinal Ranks (No Lookahead)...")
         
-        # Extract Series
-        mom_24h_dict = {}
-        mom_5d_dict = {}
-        vol_dict = {}
-        
-        # Define lookbacks
-        idx_24h = 24
-        idx_5d = 24 * 5
-        
-        for sym, df in data.items():
-            # Recalculate Mom here to ensure we have it aligned? 
-            # Or use existing? Existing 'Momentum' is lookback 10 (config).
-            # We want specific 24h/5d here.
-            mom_24h_dict[sym] = df['Close'] / df['Close'].shift(idx_24h) - 1
-            mom_5d_dict[sym] = df['Close'] / df['Close'].shift(idx_5d) - 1
-            vol_dict[sym] = df['Volatility']
-            
-        # Create DataFrames (Aligned)
-        mom_24h_df = pd.DataFrame(mom_24h_dict)
-        mom_5d_df = pd.DataFrame(mom_5d_dict)
-        vol_df = pd.DataFrame(vol_dict)
-        
-        # Rank (pct=True)
-        mom_24h_rank = mom_24h_df.rank(axis=1, pct=True)
-        mom_5d_rank = mom_5d_df.rank(axis=1, pct=True)
-        vol_rank = vol_df.rank(axis=1, pct=True)
-        
-        # Assign back
         processed = {}
         for sym, df in data.items():
             df = df.copy()
-            # Map ranks back. Use index to align.
-            # Using update or direct assignment
-            if sym in mom_24h_rank.columns:
-                 df['Mom_24h_rank'] = mom_24h_rank[sym]
-                 df['Mom_5d_rank'] = mom_5d_rank[sym]
-                 df['Vol_rank'] = vol_rank[sym]
+            
+            # 1. Momentum 24h & 5d
+            mom_24h = df['Close'] / df['Close'].shift(24) - 1
+            mom_5d = df['Close'] / df['Close'].shift(24 * 5) - 1
+            vol = df['Volatility']
+            
+            # 2. Rank against HISTORY (Rolling 100 bars approx 1 week)
+            # pct=True gives percentile (0.0 to 1.0)
+            df['Mom_24h_rank'] = mom_24h.rolling(100).rank(pct=True).fillna(0.5)
+            df['Mom_5d_rank']  = mom_5d.rolling(100).rank(pct=True).fillna(0.5)
+            df['Vol_rank']     = vol.rolling(100).rank(pct=True).fillna(0.5)
+            
             processed[sym] = df
             
         return processed
@@ -1294,42 +1272,48 @@ class Account:
         self.current_streak_len = 0
         self.current_streak_sign = 0 # 1=Win, -1=Loss
         
-    def calculate_position_size(self, price: float, stop_loss_dist: float, prob_win: float = 0.5) -> float: # Added prob_win
+    def calculate_position_size(self, price: float, stop_loss_dist: float, prob_win: float = 0.5, entropy: float = 0.0) -> float: 
         # Kelly Criterion
         # f = p - (1-p)/b
-        # We assume b (R-Multiple) ~ 1.2 (Conservative estimate from backtest)
-        # To be safe, use b=1.0 for calculation (Under-betting is safer).
         
         if stop_loss_dist <= 0: return 0.0
         
         b = 1.5 # Adjusted R-Multiple (Strategy Target is >1.5)
         kelly_fraction = prob_win - (1 - prob_win) / b
         
-        # Debug small sample
-        # if np.random.rand() < 0.001:
-        #    print(f"[KELLY DEBUG] P={prob_win:.2f}, b={b}, K={kelly_fraction:.2f}")
-
-        # Half-Kelly for safety
-        safe_fraction = kelly_fraction * 0.5
+        # Audit Recommendation: Half-Kelly or Quarter-Kelly
+        safe_fraction = kelly_fraction * self.config.kelly_fraction 
         
         if safe_fraction < 0: safe_fraction = 0.0
         
         # Dynamic Risk Limit
-        max_risk_pct = self.config.risk_per_trade # 0.8%
+        max_risk_pct = self.config.risk_per_trade 
         
-        # Final Risk % to use
-        # If High Confidence (P=0.6) -> Kelly ~ 0.2 -> Half ~ 0.1 -> Cap at 0.008
-        # Wait, Kelly often suggests HUGE size (10-20%).
-        # So essentially this becomes "Trade Full Size unless P is very low".
-        # Or should we scale relative to the Limit?
-        # Standard interpretation: "Risk Limit is the MAX".
-        # We use Min(Limit, Kelly).
-        
+        # Use Min(Limit, Kelly)
         used_risk_pct = min(max_risk_pct, safe_fraction)
         
-        # Also, scale down for low probability?
-        # If P is just above 0.5 (e.g. 0.51), Kelly is tiny.
-        # This gives us the "Conviction Sizing" automatically.
+        # === AUDIT FIX: ENTROPY SCALING ===
+        # If entropy is high (model uncertain), reduce size.
+        # Entropy usually 0.5 (very sure) to 1.5 (guess). Max theoretical ~1.58 for 3 classes.
+        # We start penalized above 0.8
+        if self.config.use_entropy_sizing:
+             # Heuristic: 
+             # Multiplier = 1.0 if entropy < 0.8
+             # Multiplier decays to 0.0 as entropy -> 1.2
+             
+             ent_threshold = 0.8
+             ent_cap = self.config.max_entropy_threshold # Use config for cap
+             
+             if entropy < ent_threshold:
+                 entropy_mult = 1.0
+             elif entropy > ent_cap:
+                 entropy_mult = 0.0
+             else:
+                 # Linear decay
+                 ratio = (entropy - ent_threshold) / (ent_cap - ent_threshold)
+                 entropy_mult = 1.0 - ratio
+                 
+             used_risk_pct *= entropy_mult
         
         risk_amount = self.equity * used_risk_pct
         
@@ -1355,7 +1339,7 @@ class Account:
         elif '-USD' in pos.symbol:  # Crypto
             # Crypto: ~0.1% spread for retail (FTMO typically 0.05-0.1%)
             notional = pos.size * exit_price
-            spread_pct = 0.001  # 0.1% spread
+            spread_pct = 0.0015  # 0.15% spread (Conservative)
             cost = notional * spread_pct * 2  # Round-trip
             
         elif pos.symbol in ['ES=F', 'NQ=F', 'YM=F', 'RTY=F']:  # Index CFDs
@@ -1385,7 +1369,6 @@ class Account:
             # Backtester `close_position` line 1317: (exit - entry) * pos.size * direction.
             # Wait. If pos.size is "Contracts" AND "Multiplier" is missing here, then PnL is raw points * contracts.
             # For NQ to lose -16%, it must match price.
-            # If Price 18000. 1% move = 180 pts.
             # If Size 1. PnL = 180.
             # Real NQ Future: 180 pts * $20 = $3600.
             # If we trade "1 Contract" in this code, we get $180.
@@ -1550,7 +1533,8 @@ class Backtester:
                 prob_win = order['prob_win']
                 
                 # New Size based on Open Price
-                size = self.account.calculate_position_size(open_price, sl_dist, prob_win=prob_win)
+                entropy = order.get('entropy', 0.0)
+                size = self.account.calculate_position_size(open_price, sl_dist, prob_win=prob_win, entropy=entropy)
                 
                 # Apply Penalty Factor if passed
                 if order.get('penalty_applied', False):
@@ -1831,7 +1815,8 @@ class Backtester:
                                 'direction': direction,
                                 'score': score,
                                 'sl_dist': sl_dist, # Store ATR-based dist
-                                'prob_win': prob_win,
+                                'prob_win': prob_win if direction == 1 else prob_win,
+                                'entropy': row.get('prob_entropy', 0.0),
                                 'penalty_applied': penalty_applied,
                                 'context': context
                             }

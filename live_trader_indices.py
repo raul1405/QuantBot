@@ -213,8 +213,9 @@ class LiveTrader:
         self.logger = TradeLogger(mode="live") # Assume LIVE for Indcies
         self.config = Config()
         self.config.mode = "LIVE"
-        self.config.use_rank_logic = True
-        self.config.rank_top_n = 1
+        self.config.mode = "LIVE"
+        # self.config.use_rank_logic = False # Disabled per Audit
+
         
         # Override Costs for Indices (Spread Logic) - handled implicitly by PnL but for Backtest comparison useful
         
@@ -300,7 +301,7 @@ class LiveTrader:
         
         # AUTO EXECUTION (Enable if confident)
         top = scan_results[0]
-        threshold = 0.505
+        threshold = self.config.ml_prob_threshold_long
         
         # Position Management
         pos_map = {p['symbol']: p for p in self.mt5.get_open_positions()}
